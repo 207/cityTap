@@ -255,8 +255,8 @@ function CityTapGame({ intro = false }) {
 
       {gameState === 'playing' && !intro && (
         <div className="search-dock">
-          <SearchBox key={currentRound} onSubmit={handleGuess} disabled={false} />
           <div className="search-hint">Name the nearest city</div>
+          <SearchBox key={currentRound} onSubmit={handleGuess} disabled={false} />
         </div>
       )}
 

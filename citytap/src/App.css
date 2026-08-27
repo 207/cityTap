@@ -155,7 +155,7 @@ body {
 
 .search-dock {
   position: absolute;
-  bottom: max(132px, 22vh);
+  bottom: 188px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
@@ -172,12 +172,12 @@ body {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(100% + 8px);
+  top: calc(100% + 8px);
   margin: 0;
   background: var(--surface);
   border: 2px solid var(--border);
   border-radius: 12px;
-  max-height: min(340px, 42vh);
+  max-height: 178px;
   overflow-y: auto;
   box-shadow: var(--shadow);
   color: var(--text);
@@ -185,7 +185,7 @@ body {
 }
 
 .search-hint {
-  margin-top: 10px;
+  margin: 0 0 10px;
   text-align: center;
   color: var(--text);
   font-size: 13px;
