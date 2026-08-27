@@ -1013,10 +1013,10 @@ body {
   }
 
   .search-dock {
-    bottom: max(64px, calc(64px + env(safe-area-inset-bottom, 0px)));
+    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   }
 
   .search-dock:has(.citytap-search.is-typing) {
-    bottom: max(240px, calc(240px + env(safe-area-inset-bottom, 0px)));
+    bottom: calc(272px + env(safe-area-inset-bottom, 0px));
   }
 }
