@@ -92,6 +92,7 @@ function setRevealLine(instance, guess, correct) {
   });
 }
 
+const PIN_FLY_MS = 3200;
 const FIT_BOTH_MS = 1600;
 const FLY_CORRECT_MS = 1300;
 const HOLD_CORRECT_MS = 750;
@@ -202,7 +203,12 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
     };
 
     const syncMarkers = () => {
-      if (!instance.loaded() || introRef.current) return;
+      if (introRef.current) return;
+      try {
+        if (!instance.getStyle() || !instance.isStyleLoaded()) return;
+      } catch {
+        return;
+      }
       clearMarkers();
 
       if (currentCity && !revealPair) {
@@ -236,13 +242,13 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
       });
     };
 
-    if (instance.loaded()) {
-      syncMarkers();
-      return undefined;
-    }
-
+    syncMarkers();
     instance.once('load', syncMarkers);
-    return () => instance.off('load', syncMarkers);
+    instance.once('idle', syncMarkers);
+    return () => {
+      instance.off('load', syncMarkers);
+      instance.off('idle', syncMarkers);
+    };
   }, [currentCity, guessedCities, correctCities, revealPair, intro]);
 
   useEffect(() => {
@@ -292,9 +298,9 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
 
     const moveCamera = () => {
       if (cancelled || introRef.current || !styleReady()) return;
-      instance.stop();
 
       if (revealPair?.guessedCity && revealPair?.correctCity) {
+        instance.stop();
         const guess = revealPair.guessedCity;
         const correct = revealPair.correctCity;
         setRevealLine(instance, guess, correct);
@@ -352,22 +358,19 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
 
       if (currentCity) {
         const target = currentCity;
-        // Jump first so a cancelled flyTo cannot leave the camera on the last pin.
-        instance.jumpTo({
-          center: [target.lng, target.lat],
-          zoom: 3.4,
-          pitch: 0,
-          bearing: 0
-        });
+        instance.stop();
+        const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         later(() => {
-          if (cancelled || introRef.current || !styleReady()) return;
+          if (cancelled || introRef.current) return;
           instance.flyTo({
             center: [target.lng, target.lat],
             zoom: 5,
-            duration: 1800,
+            pitch: 0,
+            duration: reduced ? 0 : PIN_FLY_MS,
+            curve: 1.7,
             essential: true
           });
-        }, 50);
+        }, 32);
       }
     };
 

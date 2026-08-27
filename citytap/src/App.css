@@ -155,12 +155,33 @@ body {
 
 .search-dock {
   position: absolute;
-  bottom: 36px;
+  bottom: max(132px, 22vh);
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
   width: min(520px, calc(100vw - 32px));
   animation: dock-in 0.45s ease;
+}
+
+.citytap-search {
+  position: relative;
+  width: 100%;
+}
+
+.citytap-search-results {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  margin: 0;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  max-height: min(340px, 42vh);
+  overflow-y: auto;
+  box-shadow: var(--shadow);
+  color: var(--text);
+  z-index: 100;
 }
 
 .search-hint {
@@ -638,6 +659,7 @@ body {
 }
 
 .results-share,
+.results-play,
 .results-secondary {
   width: 100%;
   padding: 13px 18px;
@@ -648,13 +670,15 @@ body {
   cursor: pointer;
 }
 
-.results-share {
+.results-share,
+.results-play {
   color: #fff;
   background: var(--accent);
   border: none;
 }
 
-.results-share:hover {
+.results-share:hover,
+.results-play:hover {
   background: var(--accent-hover);
 }
 

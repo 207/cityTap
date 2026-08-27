@@ -183,9 +183,9 @@ function CityTapGame({ intro = false }) {
     if (gameMode === 'daily') persistDaily({ gameState: 'review' });
   };
 
-  const handlePlayAgain = () => {
-    if (gameMode !== 'random') return;
+  const startRandomGame = () => {
     guessLock.current = false;
+    setGameMode('random');
     applyState({
       gameCities: getRandomCities(5),
       gameState: 'playing',
@@ -196,21 +196,19 @@ function CityTapGame({ intro = false }) {
     });
   };
 
+  const handlePlayAgain = () => {
+    if (gameMode !== 'random') return;
+    startRandomGame();
+  };
+
   const handleGameModeChange = (mode) => {
     if (mode === gameMode) return;
-    setGameMode(mode);
-    guessLock.current = false;
     if (mode === 'random') {
-      applyState({
-        gameCities: getRandomCities(5),
-        gameState: 'playing',
-        rounds: [],
-        currentGuess: null,
-        guessedCities: [],
-        correctCities: []
-      });
+      startRandomGame();
       return;
     }
+    guessLock.current = false;
+    setGameMode(mode);
     applyState(restoredDaily(dayNumber));
   };
 
@@ -279,6 +277,7 @@ function CityTapGame({ intro = false }) {
           gameMode={gameMode}
           onViewMap={handleViewMap}
           onPlayAgain={handlePlayAgain}
+          onPlayRandom={startRandomGame}
         />
       )}
 

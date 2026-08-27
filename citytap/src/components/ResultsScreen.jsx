@@ -8,6 +8,7 @@ function ResultsScreen({
   gameMode,
   onViewMap,
   onPlayAgain,
+  onPlayRandom,
   shareBuilder = generateShareText
 }) {
   const [copied, setCopied] = useState(false);
@@ -75,7 +76,12 @@ function ResultsScreen({
         </div>
 
         <div className="results-actions">
-          <button className="results-share" onClick={handleShare}>
+          {gameMode === 'daily' && onPlayRandom && (
+            <button className="results-play" onClick={onPlayRandom}>
+              Play random
+            </button>
+          )}
+          <button className={gameMode === 'daily' && onPlayRandom ? 'results-secondary' : 'results-share'} onClick={handleShare}>
             {copied ? 'Copied!' : 'Share score'}
           </button>
           <button className="results-secondary" onClick={onViewMap}>

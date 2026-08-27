@@ -63,7 +63,7 @@ function SearchBox({ onSubmit, disabled }) {
   };
 
   return (
-    <div style={{ position: 'relative', width: '100%', maxWidth: '500px' }}>
+    <div className="citytap-search">
       <input
         ref={inputRef}
         type="text"
@@ -95,21 +95,7 @@ function SearchBox({ onSubmit, disabled }) {
       />
       
       {showResults && results.length > 0 && (
-        <div style={{
-          position: 'absolute',
-          top: '100%',
-          left: 0,
-          right: 0,
-          marginTop: '8px',
-          backgroundColor: 'var(--surface)',
-          border: '2px solid var(--border)',
-          borderRadius: '12px',
-          maxHeight: '300px',
-          overflowY: 'auto',
-          boxShadow: 'var(--shadow)',
-          color: 'var(--text)',
-          zIndex: 100
-        }}>
+        <div className="citytap-search-results" role="listbox">
           {results.map((city, index) => (
             <div
               key={`${city.name}-${city.country}-${city.lat}`}
