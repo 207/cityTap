@@ -155,7 +155,7 @@ body {
 
 .search-dock {
   position: absolute;
-  bottom: 28px;
+  bottom: max(28px, env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
@@ -165,7 +165,7 @@ body {
 }
 
 .search-dock:has(.citytap-search.is-typing) {
-  bottom: 204px;
+  bottom: max(204px, calc(204px + env(safe-area-inset-bottom, 0px)));
 }
 
 .citytap-search {
@@ -1010,5 +1010,13 @@ body {
 
   .game-home-btn svg {
     display: block;
+  }
+
+  .search-dock {
+    bottom: max(40px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .search-dock:has(.citytap-search.is-typing) {
+    bottom: max(216px, calc(216px + env(safe-area-inset-bottom, 0px)));
   }
 }
