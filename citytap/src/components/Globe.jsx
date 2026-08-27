@@ -205,9 +205,7 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
       if (!instance.loaded() || introRef.current) return;
       clearMarkers();
 
-      const currentAlreadyRevealed = currentCity && correctCities.some((city) => isSameCity(city, currentCity));
-
-      if (currentCity && !currentAlreadyRevealed) {
+      if (currentCity && !revealPair) {
         addMarker(currentCity, {
           className: 'mystery-pin',
           size: 30,
@@ -284,8 +282,16 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
       timers.push(setTimeout(fn, ms));
     };
 
+    const styleReady = () => {
+      try {
+        return Boolean(instance.getStyle() && instance.isStyleLoaded());
+      } catch {
+        return false;
+      }
+    };
+
     const moveCamera = () => {
-      if (cancelled || !instance.loaded() || introRef.current) return;
+      if (cancelled || introRef.current || !styleReady()) return;
       instance.stop();
 
       if (revealPair?.guessedCity && revealPair?.correctCity) {
@@ -318,7 +324,7 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
         fitBothPins(instance, guess, correct, FIT_BOTH_MS);
 
         later(() => {
-          if (cancelled || !instance.loaded()) return;
+          if (cancelled || !styleReady()) return;
           instance.stop();
           pulseCorrect();
           instance.flyTo({
@@ -329,7 +335,7 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
           });
 
           later(() => {
-            if (cancelled || !instance.loaded()) return;
+            if (cancelled || !styleReady()) return;
             instance.stop();
             setRevealPinState(revealPins.current.guessEl, revealPins.current.correctEl, {
               dimGuess: false,
@@ -346,29 +352,43 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
 
       if (currentCity) {
         const target = currentCity;
+        // Jump first so a cancelled flyTo cannot leave the camera on the last pin.
+        instance.jumpTo({
+          center: [target.lng, target.lat],
+          zoom: 3.4,
+          pitch: 0,
+          bearing: 0
+        });
         later(() => {
-          if (cancelled || !instance.loaded() || introRef.current) return;
+          if (cancelled || introRef.current || !styleReady()) return;
           instance.flyTo({
             center: [target.lng, target.lat],
             zoom: 5,
-            duration: 2400,
+            duration: 1800,
             essential: true
           });
-        }, 40);
+        }, 50);
       }
     };
 
-    if (instance.loaded()) {
+    let started = false;
+    const tryMove = () => {
+      if (cancelled || started) return;
+      if (!styleReady()) {
+        later(tryMove, 50);
+        return;
+      }
+      started = true;
       moveCamera();
-    } else {
-      instance.once('load', moveCamera);
-    }
+    };
+
+    tryMove();
+    instance.once('load', tryMove);
 
     return () => {
       cancelled = true;
       timers.forEach(clearTimeout);
-      instance.off('load', moveCamera);
-      if (instance.getStyle()) instance.stop();
+      instance.off('load', tryMove);
     };
   }, [currentCity, revealPair, intro, focusKey]);
 

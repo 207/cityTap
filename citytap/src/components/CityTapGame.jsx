@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Globe from './Globe';
 import SearchBox from './SearchBox';
 import RevealScreen from './RevealScreen';
@@ -17,10 +17,14 @@ import { loadDailyProgress, saveDailyProgress } from '../utils/dailyProgress';
 
 const TOTAL_ROUNDS = 5;
 
+function pinIndex(gameState, roundsLength) {
+  if (gameState === 'playing') return roundsLength;
+  return Math.min(Math.max(roundsLength - 1, 0), TOTAL_ROUNDS - 1);
+}
+
 function emptyDaily(dayNumber) {
   return {
     gameCities: getDailyCities(dayNumber),
-    currentRound: 0,
     gameState: 'playing',
     rounds: [],
     currentGuess: null,
@@ -35,31 +39,20 @@ function restoredDaily(dayNumber) {
   const rounds = saved.rounds ?? [];
   let gameState = saved.gameState ?? 'playing';
   let currentGuess = saved.currentGuess ?? null;
-  let currentRound = saved.currentRound ?? 0;
 
   if (gameState === 'reveal') {
     currentGuess = currentGuess ?? rounds[rounds.length - 1] ?? null;
-    if (!currentGuess) {
-      gameState = 'playing';
-      currentRound = rounds.length;
-    } else {
-      currentRound = Math.max(0, rounds.length - 1);
-    }
+    if (!currentGuess) gameState = 'playing';
   } else if (gameState === 'playing') {
     currentGuess = null;
-    currentRound = rounds.length;
-  } else {
-    currentRound = Math.min(Math.max(rounds.length - 1, 0), TOTAL_ROUNDS - 1);
   }
 
-  if (currentRound >= TOTAL_ROUNDS) {
-    currentRound = TOTAL_ROUNDS - 1;
-    if (gameState === 'playing') gameState = 'results';
+  if (gameState === 'playing' && rounds.length >= TOTAL_ROUNDS) {
+    gameState = 'results';
   }
 
   return {
     gameCities: getDailyCities(dayNumber),
-    currentRound,
     gameState,
     rounds,
     currentGuess,
@@ -73,47 +66,44 @@ function CityTapGame({ intro = false }) {
   const [boot] = useState(() => restoredDaily(getDayNumber()));
   const [gameMode, setGameMode] = useState('daily');
   const [gameCities, setGameCities] = useState(boot.gameCities);
-  const [currentRound, setCurrentRound] = useState(boot.currentRound);
   const [gameState, setGameState] = useState(boot.gameState);
   const [rounds, setRounds] = useState(boot.rounds);
   const [currentGuess, setCurrentGuess] = useState(boot.currentGuess);
   const [guessedCities, setGuessedCities] = useState(boot.guessedCities);
   const [correctCities, setCorrectCities] = useState(boot.correctCities);
+  const guessLock = useRef(false);
 
-  const currentCity = gameCities[currentRound];
+  const currentRound = pinIndex(gameState, rounds.length);
+  const currentCity = gameState === 'playing' ? gameCities[rounds.length] ?? null : null;
 
   useEffect(() => {
     loadGuessableCities();
   }, []);
 
   useEffect(() => {
-    if (gameState !== 'playing') return;
-    if (rounds.length >= TOTAL_ROUNDS) {
+    if (gameState === 'playing' && rounds.length >= TOTAL_ROUNDS) {
       setGameState('results');
-      return;
     }
-    if (currentRound !== rounds.length) {
-      setCurrentRound(rounds.length);
-      setCurrentGuess(null);
-    }
-  }, [gameState, currentRound, rounds.length]);
+  }, [gameState, rounds.length]);
 
   const persistDaily = (next) => {
-    saveDailyProgress({
+    const merged = {
       dayNumber,
-      currentRound,
       gameState,
       rounds,
       currentGuess,
       guessedCities,
       correctCities,
       ...next
+    };
+    saveDailyProgress({
+      ...merged,
+      currentRound: pinIndex(merged.gameState, (merged.rounds ?? []).length)
     });
   };
 
   const applyState = (next) => {
     setGameCities(next.gameCities);
-    setCurrentRound(next.currentRound);
     setGameState(next.gameState);
     setRounds(next.rounds);
     setCurrentGuess(next.currentGuess);
@@ -122,11 +112,8 @@ function CityTapGame({ intro = false }) {
   };
 
   const handleGuess = (guessedCity) => {
-    if (gameState !== 'playing' || !currentCity) return;
-    if (rounds.some((round) => (
-      round.correctCity?.lat === currentCity.lat
-      && round.correctCity?.lng === currentCity.lng
-    ))) return;
+    if (gameState !== 'playing' || !currentCity || guessLock.current) return;
+    guessLock.current = true;
 
     const correctCity = currentCity;
     const distance = calculateDistance(
@@ -169,14 +156,12 @@ function CityTapGame({ intro = false }) {
   };
 
   const handleContinue = () => {
+    guessLock.current = false;
     if (rounds.length < TOTAL_ROUNDS) {
-      const nextRound = rounds.length;
-      setCurrentRound(nextRound);
       setGameState('playing');
       setCurrentGuess(null);
       if (gameMode === 'daily') {
         persistDaily({
-          currentRound: nextRound,
           gameState: 'playing',
           currentGuess: null
         });
@@ -200,9 +185,9 @@ function CityTapGame({ intro = false }) {
 
   const handlePlayAgain = () => {
     if (gameMode !== 'random') return;
+    guessLock.current = false;
     applyState({
       gameCities: getRandomCities(5),
-      currentRound: 0,
       gameState: 'playing',
       rounds: [],
       currentGuess: null,
@@ -214,10 +199,10 @@ function CityTapGame({ intro = false }) {
   const handleGameModeChange = (mode) => {
     if (mode === gameMode) return;
     setGameMode(mode);
+    guessLock.current = false;
     if (mode === 'random') {
       applyState({
         gameCities: getRandomCities(5),
-        currentRound: 0,
         gameState: 'playing',
         rounds: [],
         currentGuess: null,
@@ -267,12 +252,12 @@ function CityTapGame({ intro = false }) {
         guessedCities={guessedCities}
         correctCities={correctCities}
         revealPair={gameState === 'reveal' ? currentGuess : null}
-        focusKey={`${gameState}-${currentRound}`}
+        focusKey={`${gameState}-${currentRound}-${currentCity?.lat ?? 'x'}-${currentCity?.lng ?? 'x'}`}
       />
 
       {gameState === 'playing' && !intro && (
         <div className="search-dock">
-          <SearchBox onSubmit={handleGuess} disabled={false} />
+          <SearchBox key={currentRound} onSubmit={handleGuess} disabled={false} />
           <div className="search-hint">Name the nearest city</div>
         </div>
       )}
