@@ -42,12 +42,14 @@ body {
 
 .globe-root {
   background: rgb(11, 11, 25);
-  transition: filter 0.7s ease, transform 0.7s ease;
 }
 
-.globe-root.is-intro {
-  filter: blur(12px) saturate(1.15);
-  transform: scale(1.06);
+.globe-root.is-intro::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 11, 25, 0.32);
+  pointer-events: none;
 }
 
 .game-header {
@@ -709,14 +711,12 @@ body {
     animation: none;
   }
 
-  .splash,
-  .globe-root {
+  .splash {
     transition: none;
   }
 
-  .globe-root.is-intro {
-    filter: blur(10px);
-    transform: none;
+  .globe-root.is-intro::after {
+    background: rgba(11, 11, 25, 0.45);
   }
 }
 
@@ -747,7 +747,8 @@ body {
   padding: 28px 36px 24px;
   border: 1px solid var(--border);
   border-radius: 24px;
-  background: var(--reveal-surface);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  box-shadow: var(--modal-shadow);
   backdrop-filter: blur(16px) saturate(1.2);
   -webkit-backdrop-filter: blur(16px) saturate(1.2);
 }

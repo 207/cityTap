@@ -10,7 +10,8 @@ import {
   getRandomCities,
   getDayNumber,
   calculateDistance,
-  calculateFinalScore
+  calculateFinalScore,
+  loadGuessableCities
 } from '../utils/gameLogic';
 import { loadDailyProgress, saveDailyProgress } from '../utils/dailyProgress';
 
@@ -80,6 +81,10 @@ function CityTapGame({ intro = false }) {
   const [correctCities, setCorrectCities] = useState(boot.correctCities);
 
   const currentCity = gameCities[currentRound];
+
+  useEffect(() => {
+    loadGuessableCities();
+  }, []);
 
   useEffect(() => {
     if (gameState !== 'playing') return;

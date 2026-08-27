@@ -1,5 +1,4 @@
 import allCities from '../data/cities.json';
-import guessableCities from '../data/guessableCities.json';
 import { COUNTRY_POPULATIONS } from '../data/countryPopulations.js';
 
 const MIN_EXTRA_CITY_POP = 150_000;
@@ -156,10 +155,20 @@ function citySearchNames(city) {
   return names;
 }
 
+let guessableCities = [];
+const guessableReady = import('../data/guessableCities.json').then((mod) => {
+  guessableCities = mod.default;
+  return guessableCities;
+});
+
+export function loadGuessableCities() {
+  return guessableReady;
+}
+
 // Autocomplete uses a wide world list. Daily/random pins still use `cities`.
 export function searchCities(query) {
   const q = foldName(query).trim();
-  if (!q) return [];
+  if (!q || guessableCities.length === 0) return [];
 
   const starts = [];
   const partial = [];
