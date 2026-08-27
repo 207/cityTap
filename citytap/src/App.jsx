@@ -1,21 +1,20 @@
-import { useState } from 'react';
-import MainMenu from './components/MainMenu';
+import { useCallback, useState } from 'react';
 import CityTapGame from './components/CityTapGame';
-import MapZoomGame from './components/MapZoomGame';
+import Splash from './components/Splash';
 import './App.css';
 
 function App() {
-  const [game, setGame] = useState(null);
+  const [intro, setIntro] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
+  const startPlay = useCallback(() => setIntro(false), []);
+  const hideSplash = useCallback(() => setShowSplash(false), []);
 
-  if (!game) {
-    return <MainMenu onPick={setGame} />;
-  }
-
-  if (game === 'mapzoom') {
-    return <MapZoomGame onBack={() => setGame(null)} />;
-  }
-
-  return <CityTapGame onBack={() => setGame(null)} />;
+  return (
+    <>
+      <CityTapGame intro={intro} />
+      {showSplash && <Splash onPlay={startPlay} onGone={hideSplash} />}
+    </>
+  );
 }
 
 export default App;

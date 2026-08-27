@@ -1,11 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Globe from './Globe';
 import SearchBox from './SearchBox';
 import RevealScreen from './RevealScreen';
 import ResultsScreen from './ResultsScreen';
 import ThemeToggle from './ThemeToggle';
 import ModeToggle from './ModeToggle';
-import HomeButton from './HomeButton';
 import {
   getDailyCities,
   getRandomCities,
@@ -13,22 +12,117 @@ import {
   calculateDistance,
   calculateFinalScore
 } from '../utils/gameLogic';
+import { loadDailyProgress, saveDailyProgress } from '../utils/dailyProgress';
 
-function CityTapGame({ onBack }) {
-  const [dayNumber] = useState(getDayNumber());
+const TOTAL_ROUNDS = 5;
+
+function emptyDaily(dayNumber) {
+  return {
+    gameCities: getDailyCities(dayNumber),
+    currentRound: 0,
+    gameState: 'playing',
+    rounds: [],
+    currentGuess: null,
+    guessedCities: [],
+    correctCities: []
+  };
+}
+
+function restoredDaily(dayNumber) {
+  const saved = loadDailyProgress(dayNumber);
+  if (!saved) return emptyDaily(dayNumber);
+  const rounds = saved.rounds ?? [];
+  let gameState = saved.gameState ?? 'playing';
+  let currentGuess = saved.currentGuess ?? null;
+  let currentRound = saved.currentRound ?? 0;
+
+  if (gameState === 'reveal') {
+    currentGuess = currentGuess ?? rounds[rounds.length - 1] ?? null;
+    if (!currentGuess) {
+      gameState = 'playing';
+      currentRound = rounds.length;
+    } else {
+      currentRound = Math.max(0, rounds.length - 1);
+    }
+  } else if (gameState === 'playing') {
+    currentGuess = null;
+    currentRound = rounds.length;
+  } else {
+    currentRound = Math.min(Math.max(rounds.length - 1, 0), TOTAL_ROUNDS - 1);
+  }
+
+  if (currentRound >= TOTAL_ROUNDS) {
+    currentRound = TOTAL_ROUNDS - 1;
+    if (gameState === 'playing') gameState = 'results';
+  }
+
+  return {
+    gameCities: getDailyCities(dayNumber),
+    currentRound,
+    gameState,
+    rounds,
+    currentGuess,
+    guessedCities: saved.guessedCities ?? [],
+    correctCities: saved.correctCities ?? []
+  };
+}
+
+function CityTapGame({ intro = false }) {
+  const [dayNumber] = useState(getDayNumber);
+  const [boot] = useState(() => restoredDaily(getDayNumber()));
   const [gameMode, setGameMode] = useState('daily');
-  const [gameCities, setGameCities] = useState(() => getDailyCities(dayNumber));
-  const [currentRound, setCurrentRound] = useState(0);
-  const [gameState, setGameState] = useState('playing');
-  const [rounds, setRounds] = useState([]);
-  const [currentGuess, setCurrentGuess] = useState(null);
-  const [guessedCities, setGuessedCities] = useState([]);
-  const [correctCities, setCorrectCities] = useState([]);
+  const [gameCities, setGameCities] = useState(boot.gameCities);
+  const [currentRound, setCurrentRound] = useState(boot.currentRound);
+  const [gameState, setGameState] = useState(boot.gameState);
+  const [rounds, setRounds] = useState(boot.rounds);
+  const [currentGuess, setCurrentGuess] = useState(boot.currentGuess);
+  const [guessedCities, setGuessedCities] = useState(boot.guessedCities);
+  const [correctCities, setCorrectCities] = useState(boot.correctCities);
 
   const currentCity = gameCities[currentRound];
-  const totalRounds = 5;
+
+  useEffect(() => {
+    if (gameState !== 'playing') return;
+    if (rounds.length >= TOTAL_ROUNDS) {
+      setGameState('results');
+      return;
+    }
+    if (currentRound !== rounds.length) {
+      setCurrentRound(rounds.length);
+      setCurrentGuess(null);
+    }
+  }, [gameState, currentRound, rounds.length]);
+
+  const persistDaily = (next) => {
+    saveDailyProgress({
+      dayNumber,
+      currentRound,
+      gameState,
+      rounds,
+      currentGuess,
+      guessedCities,
+      correctCities,
+      ...next
+    });
+  };
+
+  const applyState = (next) => {
+    setGameCities(next.gameCities);
+    setCurrentRound(next.currentRound);
+    setGameState(next.gameState);
+    setRounds(next.rounds);
+    setCurrentGuess(next.currentGuess);
+    setGuessedCities(next.guessedCities);
+    setCorrectCities(next.correctCities);
+  };
 
   const handleGuess = (guessedCity) => {
+    if (gameState !== 'playing' || !currentCity) return;
+    if (rounds.some((round) => (
+      round.correctCity?.lat === currentCity.lat
+      && round.correctCity?.lng === currentCity.lng
+    ))) return;
+
     const correctCity = currentCity;
     const distance = calculateDistance(
       guessedCity.lat,
@@ -38,7 +132,6 @@ function CityTapGame({ onBack }) {
     );
 
     const score = calculateFinalScore(distance);
-
     const sameCountry = guessedCity.country === correctCity.country;
 
     const roundData = {
@@ -49,105 +142,147 @@ function CityTapGame({ onBack }) {
       sameCountry
     };
 
+    const nextRounds = [...rounds, roundData];
+    const nextGuessed = [...guessedCities, guessedCity];
+    const nextCorrect = [...correctCities, correctCity];
+
     setCurrentGuess(roundData);
-    setRounds([...rounds, roundData]);
-    setGuessedCities([...guessedCities, guessedCity]);
-    setCorrectCities([...correctCities, correctCity]);
+    setRounds(nextRounds);
+    setGuessedCities(nextGuessed);
+    setCorrectCities(nextCorrect);
     setGameState('reveal');
+
+    if (gameMode === 'daily') {
+      persistDaily({
+        currentGuess: roundData,
+        rounds: nextRounds,
+        guessedCities: nextGuessed,
+        correctCities: nextCorrect,
+        gameState: 'reveal'
+      });
+    }
   };
 
   const handleContinue = () => {
-    if (currentRound < totalRounds - 1) {
-      setCurrentRound(currentRound + 1);
+    if (rounds.length < TOTAL_ROUNDS) {
+      const nextRound = rounds.length;
+      setCurrentRound(nextRound);
       setGameState('playing');
       setCurrentGuess(null);
-    } else {
-      setGameState('results');
+      if (gameMode === 'daily') {
+        persistDaily({
+          currentRound: nextRound,
+          gameState: 'playing',
+          currentGuess: null
+        });
+      }
+      return;
+    }
+
+    setGameState('results');
+    if (gameMode === 'daily') {
+      persistDaily({
+        gameState: 'results',
+        currentGuess: null
+      });
     }
   };
 
   const handleViewMap = () => {
     setGameState('review');
+    if (gameMode === 'daily') persistDaily({ gameState: 'review' });
   };
 
   const handlePlayAgain = () => {
-    startNewGame(gameMode === 'random' ? getRandomCities(5) : getDailyCities(dayNumber));
-  };
-
-  const startNewGame = (cities) => {
-    setGameCities(cities);
-    setCurrentRound(0);
-    setGameState('playing');
-    setRounds([]);
-    setCurrentGuess(null);
-    setGuessedCities([]);
-    setCorrectCities([]);
+    if (gameMode !== 'random') return;
+    applyState({
+      gameCities: getRandomCities(5),
+      currentRound: 0,
+      gameState: 'playing',
+      rounds: [],
+      currentGuess: null,
+      guessedCities: [],
+      correctCities: []
+    });
   };
 
   const handleGameModeChange = (mode) => {
     if (mode === gameMode) return;
     setGameMode(mode);
-    startNewGame(mode === 'random' ? getRandomCities(5) : getDailyCities(dayNumber));
+    if (mode === 'random') {
+      applyState({
+        gameCities: getRandomCities(5),
+        currentRound: 0,
+        gameState: 'playing',
+        rounds: [],
+        currentGuess: null,
+        guessedCities: [],
+        correctCities: []
+      });
+      return;
+    }
+    applyState(restoredDaily(dayNumber));
   };
 
   const runningScore = rounds.reduce((sum, r) => sum + r.score, 0);
   const finished = gameState === 'results' || gameState === 'review';
-  const scoreMax = finished ? totalRounds * 100 : rounds.length * 100;
+  const scoreMax = finished ? TOTAL_ROUNDS * 100 : rounds.length * 100;
 
   return (
     <div className="game-shell">
-      <header className="game-header">
-        <div className="game-header-inner">
-          <div className="game-header-left">
-            <HomeButton onClick={onBack} />
+      {!intro && (
+        <header className="game-header">
+          <div className="game-header-inner">
             <div>
               <h1 className="game-wordmark">CityTap</h1>
               <div className="game-subtitle">
                 {gameMode === 'daily' ? `#${dayNumber} · Daily` : 'Random · Testing'}
               </div>
             </div>
-          </div>
-          <div className="game-header-right">
-            <div className="game-scoreboard">
-              <div className="game-scoreboard-round">
-                {finished ? 'Finished' : `${currentRound + 1} / ${totalRounds}`}
+            <div className="game-header-right">
+              <div className="game-scoreboard">
+                <div className="game-scoreboard-round">
+                  {finished ? 'Finished' : `${currentRound + 1} / ${TOTAL_ROUNDS}`}
+                </div>
+                <div className="game-scoreboard-score">
+                  {runningScore}
+                  <span>/{scoreMax}</span>
+                </div>
               </div>
-              <div className="game-scoreboard-score">
-                {runningScore}
-                <span>/{scoreMax}</span>
-              </div>
+              <ModeToggle mode={gameMode} onChange={handleGameModeChange} />
+              <ThemeToggle />
             </div>
-            <ModeToggle mode={gameMode} onChange={handleGameModeChange} />
-            <ThemeToggle />
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       <Globe
+        intro={intro}
         currentCity={currentCity}
         guessedCities={guessedCities}
         correctCities={correctCities}
         revealPair={gameState === 'reveal' ? currentGuess : null}
+        focusKey={`${gameState}-${currentRound}`}
       />
 
-      {gameState === 'playing' && (
+      {gameState === 'playing' && !intro && (
         <div className="search-dock">
           <SearchBox onSubmit={handleGuess} disabled={false} />
           <div className="search-hint">Name the nearest city</div>
         </div>
       )}
 
-      {gameState === 'reveal' && currentGuess && (
+      {gameState === 'reveal' && currentGuess && !intro && (
         <RevealScreen
           round={currentGuess}
           roundNumber={currentRound + 1}
-          totalRounds={totalRounds}
+          totalRounds={TOTAL_ROUNDS}
           rounds={rounds}
           onContinue={handleContinue}
         />
       )}
 
-      {gameState === 'results' && (
+      {gameState === 'results' && !intro && (
         <ResultsScreen
           rounds={rounds}
           dayNumber={dayNumber}
@@ -157,8 +292,11 @@ function CityTapGame({ onBack }) {
         />
       )}
 
-      {gameState === 'review' && (
-        <button className="show-results-chip" onClick={() => setGameState('results')}>
+      {gameState === 'review' && !intro && (
+        <button className="show-results-chip" onClick={() => {
+          setGameState('results');
+          if (gameMode === 'daily') persistDaily({ gameState: 'results' });
+        }}>
           Show score
         </button>
       )}

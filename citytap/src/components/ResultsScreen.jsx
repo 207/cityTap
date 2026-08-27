@@ -32,7 +32,9 @@ function ResultsScreen({
         <div className="results-kicker">
           {gameMode === 'daily' ? `Daily #${dayNumber}` : 'Random game'}
         </div>
-        <h1 className="results-title">Round complete</h1>
+        <h1 className="results-title">
+          {gameMode === 'daily' ? "Today's score" : 'Round complete'}
+        </h1>
 
         <div className={`results-total score-${totalTone}`}>
           <span className="results-total-num">{shownScore}</span>
@@ -44,6 +46,10 @@ function ResultsScreen({
             <span key={i}>{getScoreEmoji(round.score)}</span>
           ))}
         </div>
+
+        {gameMode === 'daily' && (
+          <p className="results-tomorrow">Come back tomorrow for a new daily</p>
+        )}
 
         <div className="results-rounds">
           {rounds.map((round, i) => {

@@ -134,11 +134,13 @@ function setRevealPinState(guessEl, correctEl, { dimGuess = false, pulseCorrect 
   }
 }
 
-function Globe({ currentCity, guessedCities, correctCities, revealPair }) {
+function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = false, focusKey }) {
   const mapContainer = useRef(null);
   const map = useRef(null);
   const markers = useRef([]);
   const revealPins = useRef({ guessEl: null, correctEl: null });
+  const introRef = useRef(intro);
+  introRef.current = intro;
 
   const clearMarkers = () => {
     markers.current.forEach((marker) => marker.remove());
@@ -155,8 +157,8 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair }) {
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/satellite-v9',
       projection: 'globe',
-      center: [0, 30],
-      zoom: 1.5,
+      center: [20, 18],
+      zoom: 1.45,
       pitch: 0,
       bearing: 0,
       fadeDuration: 0
@@ -200,11 +202,10 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair }) {
     };
 
     const syncMarkers = () => {
-      if (!instance.loaded()) return;
-      instance.stop();
+      if (!instance.loaded() || introRef.current) return;
       clearMarkers();
 
-      const currentAlreadyRevealed = currentCity && correctCities.includes(currentCity);
+      const currentAlreadyRevealed = currentCity && correctCities.some((city) => isSameCity(city, currentCity));
 
       if (currentCity && !currentAlreadyRevealed) {
         addMarker(currentCity, {
@@ -244,7 +245,34 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair }) {
 
     instance.once('load', syncMarkers);
     return () => instance.off('load', syncMarkers);
-  }, [currentCity, guessedCities, correctCities, revealPair]);
+  }, [currentCity, guessedCities, correctCities, revealPair, intro]);
+
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || !intro) return undefined;
+
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) return undefined;
+
+    let raf = 0;
+    let last = 0;
+    const degPerSec = 3.2;
+
+    const tick = (now) => {
+      if (!introRef.current) return;
+      if (!last) last = now;
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      if (instance.loaded()) {
+        const center = instance.getCenter();
+        instance.jumpTo({ center: [center.lng + degPerSec * dt, center.lat] });
+      }
+      raf = requestAnimationFrame(tick);
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [intro]);
 
   useEffect(() => {
     const instance = map.current;
@@ -257,7 +285,7 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair }) {
     };
 
     const moveCamera = () => {
-      if (cancelled || !instance.loaded()) return;
+      if (cancelled || !instance.loaded() || introRef.current) return;
       instance.stop();
 
       if (revealPair?.guessedCity && revealPair?.correctCity) {
@@ -317,12 +345,16 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair }) {
       setRevealPinState(revealPins.current.guessEl, revealPins.current.correctEl);
 
       if (currentCity) {
-        instance.flyTo({
-          center: [currentCity.lng, currentCity.lat],
-          zoom: 5,
-          duration: 2000,
-          essential: true
-        });
+        const target = currentCity;
+        later(() => {
+          if (cancelled || !instance.loaded() || introRef.current) return;
+          instance.flyTo({
+            center: [target.lng, target.lat],
+            zoom: 5,
+            duration: 2400,
+            essential: true
+          });
+        }, 40);
       }
     };
 
@@ -338,16 +370,20 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair }) {
       instance.off('load', moveCamera);
       if (instance.getStyle()) instance.stop();
     };
-  }, [currentCity, revealPair]);
+  }, [currentCity, revealPair, intro, focusKey]);
 
   return (
-    <div ref={mapContainer} style={{
-      width: '100%',
-      height: '100%',
-      position: 'absolute',
-      top: 0,
-      left: 0
-    }} />
+    <div
+      ref={mapContainer}
+      className={`globe-root${intro ? ' is-intro' : ''}`}
+      style={{
+        width: '100%',
+        height: '100%',
+        position: 'absolute',
+        top: 0,
+        left: 0
+      }}
+    />
   );
 }
 
