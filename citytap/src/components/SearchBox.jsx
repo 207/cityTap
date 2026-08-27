@@ -63,7 +63,7 @@ function SearchBox({ onSubmit, disabled }) {
   };
 
   return (
-    <div className="citytap-search">
+    <div className={`citytap-search${query.length > 0 ? ' is-typing' : ''}`}>
       <input
         ref={inputRef}
         type="text"

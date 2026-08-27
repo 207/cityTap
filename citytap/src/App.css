@@ -155,12 +155,17 @@ body {
 
 .search-dock {
   position: absolute;
-  bottom: 188px;
+  bottom: 28px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
   width: min(520px, calc(100vw - 32px));
   animation: dock-in 0.45s ease;
+  transition: bottom 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.search-dock:has(.citytap-search.is-typing) {
+  bottom: 204px;
 }
 
 .citytap-search {
@@ -736,6 +741,10 @@ body {
   }
 
   .splash {
+    transition: none;
+  }
+
+  .search-dock {
     transition: none;
   }
 
