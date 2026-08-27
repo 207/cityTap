@@ -155,7 +155,7 @@ body {
 
 .search-dock {
   position: absolute;
-  bottom: max(28px, env(safe-area-inset-bottom, 0px));
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
@@ -165,7 +165,7 @@ body {
 }
 
 .search-dock:has(.citytap-search.is-typing) {
-  bottom: max(204px, calc(204px + env(safe-area-inset-bottom, 0px)));
+  bottom: calc(256px + env(safe-area-inset-bottom, 0px));
 }
 
 .citytap-search {
