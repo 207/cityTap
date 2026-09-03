@@ -1,9 +1,29 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const REVEAL_LINE_ID = 'reveal-line';
+const RECAP_LINE_ID = 'recap-lines';
+
+const EASY_PLAY_ZOOM = 5;
+const RECAP_ZOOM = 1.38;
+const RECAP_CENTER = [18, 16];
+const PIN_FLY_MS = 3200;
+const FIT_BOTH_MS = 1600;
+const FLY_CORRECT_MS = 1300;
+const HOLD_CORRECT_MS = 750;
+const SETTLE_MS = 1400;
+const INTERACT_HANDLERS = [
+  'dragPan',
+  'scrollZoom',
+  'boxZoom',
+  'dragRotate',
+  'keyboard',
+  'doubleClickZoom',
+  'touchZoomRotate',
+  'touchPitch'
+];
 
 function escapeHtml(value) {
   return String(value)
@@ -48,37 +68,43 @@ function revealLineCoords(guess, correct) {
   return [[lng1, guess.lat], [lng2, correct.lat]];
 }
 
-function clearRevealLine(instance) {
-  if (!instance || !instance.getStyle()) return;
-  if (instance.getLayer(REVEAL_LINE_ID)) {
-    instance.removeLayer(REVEAL_LINE_ID);
-  }
-  if (instance.getSource(REVEAL_LINE_ID)) {
-    instance.removeSource(REVEAL_LINE_ID);
+function styleReady(instance) {
+  try {
+    return Boolean(instance?.getStyle() && instance.isStyleLoaded());
+  } catch {
+    return false;
   }
 }
 
-function setRevealLine(instance, guess, correct) {
-  const data = {
-    type: 'Feature',
-    properties: {},
-    geometry: {
-      type: 'LineString',
-      coordinates: revealLineCoords(guess, correct)
-    }
-  };
+function setMapLocked(instance, locked) {
+  if (!instance) return;
+  INTERACT_HANDLERS.forEach((name) => {
+    const handler = instance[name];
+    if (!handler) return;
+    if (locked) handler.disable();
+    else handler.enable();
+  });
+}
 
-  const source = instance.getSource(REVEAL_LINE_ID);
+function clearLine(instance, id) {
+  if (!styleReady(instance)) return;
+  if (instance.getLayer(id)) instance.removeLayer(id);
+  if (instance.getSource(id)) instance.removeSource(id);
+}
+
+function setLineLayer(instance, id, data) {
+  if (!styleReady(instance)) return;
+  const source = instance.getSource(id);
   if (source) {
     source.setData(data);
     return;
   }
 
-  instance.addSource(REVEAL_LINE_ID, { type: 'geojson', data });
+  instance.addSource(id, { type: 'geojson', data });
   instance.addLayer({
-    id: REVEAL_LINE_ID,
+    id,
     type: 'line',
-    source: REVEAL_LINE_ID,
+    source: id,
     layout: {
       'line-cap': 'round',
       'line-join': 'round'
@@ -86,17 +112,40 @@ function setRevealLine(instance, guess, correct) {
     paint: {
       'line-color': '#fbbf24',
       'line-width': 3,
-      'line-opacity': 0.95,
+      'line-opacity': id === RECAP_LINE_ID ? 0.72 : 0.95,
       'line-dasharray': [2, 1.4]
     }
   });
 }
 
-const PIN_FLY_MS = 3200;
-const FIT_BOTH_MS = 1600;
-const FLY_CORRECT_MS = 1300;
-const HOLD_CORRECT_MS = 750;
-const SETTLE_MS = 1400;
+function setRevealLine(instance, guess, correct) {
+  setLineLayer(instance, REVEAL_LINE_ID, {
+    type: 'Feature',
+    properties: {},
+    geometry: {
+      type: 'LineString',
+      coordinates: revealLineCoords(guess, correct)
+    }
+  });
+}
+
+function setRecapLines(instance, rounds) {
+  const features = (rounds ?? [])
+    .filter((round) => round?.guessedCity && round?.correctCity)
+    .map((round) => ({
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'LineString',
+        coordinates: revealLineCoords(round.guessedCity, round.correctCity)
+      }
+    }));
+
+  setLineLayer(instance, RECAP_LINE_ID, {
+    type: 'FeatureCollection',
+    features
+  });
+}
 
 function isSameCity(a, b) {
   return a && b && a.lat === b.lat && a.lng === b.lng && a.name === b.name;
@@ -135,13 +184,39 @@ function setRevealPinState(guessEl, correctEl, { dimGuess = false, pulseCorrect 
   }
 }
 
-function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = false, focusKey }) {
+function Globe({
+  currentCity,
+  guessedCities,
+  correctCities,
+  revealPair,
+  intro = false,
+  hard = false,
+  hardZoom = 5.8,
+  recap = false,
+  cover = false,
+  rounds = [],
+  focusKey
+}) {
   const mapContainer = useRef(null);
   const map = useRef(null);
   const markers = useRef([]);
   const revealPins = useRef({ guessEl: null, correctEl: null });
   const introRef = useRef(intro);
+  const recapRef = useRef(recap);
+  const hardRef = useRef(hard);
+  const userControlRef = useRef(false);
   introRef.current = intro;
+  recapRef.current = recap;
+  hardRef.current = hard;
+
+  const [veil, setVeil] = useState(false);
+  const locked = hard && !intro && !recap;
+
+  useLayoutEffect(() => {
+    if (cover || (hard && !intro && !recap && currentCity && !revealPair)) {
+      setVeil(true);
+    }
+  }, [cover, hard, intro, recap, currentCity, revealPair, focusKey]);
 
   const clearMarkers = () => {
     markers.current.forEach((marker) => marker.remove());
@@ -150,7 +225,7 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
   };
 
   useEffect(() => {
-    if (!mapContainer.current) return undefined;
+    if (!mapContainer.current || !MAPBOX_TOKEN) return undefined;
 
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
@@ -167,6 +242,18 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
 
     map.current = instance;
 
+    const markUserControl = (event) => {
+      if (event?.originalEvent) userControlRef.current = true;
+    };
+    const releaseUserControl = () => {
+      userControlRef.current = false;
+    };
+
+    instance.on('mousedown', markUserControl);
+    instance.on('touchstart', markUserControl);
+    instance.on('mouseup', releaseUserControl);
+    instance.on('touchend', releaseUserControl);
+
     instance.on('style.load', () => {
       instance.setFog({
         color: 'rgb(186, 210, 235)',
@@ -179,12 +266,20 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
 
     return () => {
       clearMarkers();
+      instance.off('mousedown', markUserControl);
+      instance.off('touchstart', markUserControl);
+      instance.off('mouseup', releaseUserControl);
+      instance.off('touchend', releaseUserControl);
       instance.remove();
       if (map.current === instance) {
         map.current = null;
       }
     };
   }, []);
+
+  useEffect(() => {
+    setMapLocked(map.current, locked);
+  }, [locked]);
 
   useEffect(() => {
     const instance = map.current;
@@ -204,14 +299,10 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
 
     const syncMarkers = () => {
       if (introRef.current) return;
-      try {
-        if (!instance.getStyle() || !instance.isStyleLoaded()) return;
-      } catch {
-        return;
-      }
+      if (!styleReady(instance)) return;
       clearMarkers();
 
-      if (currentCity && !revealPair) {
+      if (currentCity && !revealPair && !recapRef.current) {
         addMarker(currentCity, {
           className: 'mystery-pin',
           size: 30,
@@ -249,34 +340,55 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
       instance.off('load', syncMarkers);
       instance.off('idle', syncMarkers);
     };
-  }, [currentCity, guessedCities, correctCities, revealPair, intro]);
+  }, [currentCity, guessedCities, correctCities, revealPair, intro, recap]);
 
   useEffect(() => {
     const instance = map.current;
-    if (!instance || !intro) return undefined;
+    if (!instance || !(intro || recap)) return undefined;
 
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduced) return undefined;
 
     let raf = 0;
     let last = 0;
-    const degPerSec = 3.2;
+    let spinning = !recap;
+    const degPerSec = recap ? 4.1 : 3.2;
+    const spinDelay = recap
+      ? setTimeout(() => {
+          spinning = true;
+        }, 1900)
+      : 0;
 
     const tick = (now) => {
-      if (!introRef.current) return;
+      if (!introRef.current && !recapRef.current) return;
+      if (recapRef.current && !spinning) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+      if (userControlRef.current && recapRef.current) {
+        last = now;
+        raf = requestAnimationFrame(tick);
+        return;
+      }
       if (!last) last = now;
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       if (instance.loaded()) {
         const center = instance.getCenter();
-        instance.jumpTo({ center: [center.lng + degPerSec * dt, center.lat] });
+        instance.jumpTo({
+          center: [center.lng + degPerSec * dt, center.lat],
+          zoom: recapRef.current ? Math.min(instance.getZoom(), RECAP_ZOOM + 0.15) : instance.getZoom()
+        });
       }
       raf = requestAnimationFrame(tick);
     };
 
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [intro]);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(spinDelay);
+    };
+  }, [intro, recap]);
 
   useEffect(() => {
     const instance = map.current;
@@ -288,18 +400,29 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
       timers.push(setTimeout(fn, ms));
     };
 
-    const styleReady = () => {
-      try {
-        return Boolean(instance.getStyle() && instance.isStyleLoaded());
-      } catch {
-        return false;
-      }
-    };
-
     const moveCamera = () => {
-      if (cancelled || introRef.current || !styleReady()) return;
+      if (cancelled || introRef.current || !styleReady(instance)) return;
+
+      if (recap) {
+        instance.stop();
+        clearLine(instance, REVEAL_LINE_ID);
+        setRecapLines(instance, rounds);
+        const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        instance.easeTo({
+          center: RECAP_CENTER,
+          zoom: RECAP_ZOOM,
+          pitch: 0,
+          bearing: instance.getBearing(),
+          duration: reduced ? 0 : 1800,
+          essential: true
+        });
+        return;
+      }
+
+      clearLine(instance, RECAP_LINE_ID);
 
       if (revealPair?.guessedCity && revealPair?.correctCity) {
+        setVeil(false);
         instance.stop();
         const guess = revealPair.guessedCity;
         const correct = revealPair.correctCity;
@@ -330,7 +453,7 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
         fitBothPins(instance, guess, correct, FIT_BOTH_MS);
 
         later(() => {
-          if (cancelled || !styleReady()) return;
+          if (cancelled || !styleReady(instance)) return;
           instance.stop();
           pulseCorrect();
           instance.flyTo({
@@ -341,7 +464,7 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
           });
 
           later(() => {
-            if (cancelled || !styleReady()) return;
+            if (cancelled || !styleReady(instance)) return;
             instance.stop();
             setRevealPinState(revealPins.current.guessEl, revealPins.current.correctEl, {
               dimGuess: false,
@@ -353,18 +476,37 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
         return;
       }
 
-      clearRevealLine(instance);
+      clearLine(instance, REVEAL_LINE_ID);
       setRevealPinState(revealPins.current.guessEl, revealPins.current.correctEl);
 
       if (currentCity) {
         const target = currentCity;
         instance.stop();
         const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        if (hard) {
+          setVeil(true);
+          later(() => {
+            if (cancelled || introRef.current) return;
+            instance.jumpTo({
+              center: [target.lng, target.lat],
+              zoom: hardZoom,
+              pitch: 0,
+              bearing: 0
+            });
+            later(() => {
+              if (!cancelled && !cover) setVeil(false);
+            }, reduced ? 0 : 160);
+          }, 40);
+          return;
+        }
+
+        setVeil(false);
         later(() => {
           if (cancelled || introRef.current) return;
           instance.flyTo({
             center: [target.lng, target.lat],
-            zoom: 5,
+            zoom: EASY_PLAY_ZOOM,
             pitch: 0,
             duration: reduced ? 0 : PIN_FLY_MS,
             curve: 1.7,
@@ -377,7 +519,7 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
     let started = false;
     const tryMove = () => {
       if (cancelled || started) return;
-      if (!styleReady()) {
+      if (!styleReady(instance)) {
         later(tryMove, 50);
         return;
       }
@@ -393,20 +535,39 @@ function Globe({ currentCity, guessedCities, correctCities, revealPair, intro = 
       timers.forEach(clearTimeout);
       instance.off('load', tryMove);
     };
-  }, [currentCity, revealPair, intro, focusKey]);
+  }, [currentCity, revealPair, intro, focusKey, hard, recap, recap ? rounds.length : 0]);
+
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || intro || recap || revealPair || !hard || !currentCity) return;
+    if (!styleReady(instance)) return;
+    instance.jumpTo({
+      center: [currentCity.lng, currentCity.lat],
+      zoom: hardZoom,
+      pitch: 0,
+      bearing: 0
+    });
+  }, [hardZoom, hard, currentCity, intro, recap, revealPair]);
+
+  const coverRef = useRef(false);
+
+  useEffect(() => {
+    if (coverRef.current && !cover) setVeil(false);
+    coverRef.current = cover;
+  }, [cover]);
 
   return (
-    <div
-      ref={mapContainer}
-      className={`globe-root${intro ? ' is-intro' : ''}`}
-      style={{
-        width: '100%',
-        height: '100%',
-        position: 'absolute',
-        top: 0,
-        left: 0
-      }}
-    />
+    <div className={`globe-shell${intro ? ' is-intro' : ''}${locked ? ' is-locked' : ''}`}>
+      <div
+        ref={mapContainer}
+        className="globe-root"
+        style={{
+          width: '100%',
+          height: '100%'
+        }}
+      />
+      <div className={`globe-veil${veil ? ' is-on' : ''}`} aria-hidden="true" />
+    </div>
   );
 }
 

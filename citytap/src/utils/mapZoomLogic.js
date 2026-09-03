@@ -84,9 +84,18 @@ export function getDailyLocations(dayNumber = getDayNumber()) {
   );
 }
 
-export function getRandomLocations(count = TOTAL_ROUNDS) {
-  return pickUnique(cities, count, () => Math.random()).map((city, i) =>
-    offsetLocation(city, Math.floor(Math.random() * 1_000_000) + i)
+export function getRandomLocations(count = TOTAL_ROUNDS, seed) {
+  if (seed == null || seed === '') {
+    return pickUnique(cities, count, () => Math.random()).map((city, i) =>
+      offsetLocation(city, Math.floor(Math.random() * 1_000_000) + i)
+    );
+  }
+  const numeric = [...String(seed)].reduce((hash, ch) => {
+    hash ^= ch.charCodeAt(0);
+    return Math.imul(hash, 16777619);
+  }, 2166136261) >>> 0;
+  return pickUnique(cities, count, (i) => seededRandom(numeric + i * 97 + 4243)).map((city, i) =>
+    offsetLocation(city, numeric + i * 13)
   );
 }
 

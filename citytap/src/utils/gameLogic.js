@@ -105,13 +105,83 @@ function pickUnique(pool, count, rng) {
   return selectedCities;
 }
 
-export function getDailyCities(dayNumber = getDayNumber()) {
-  const seed = dayNumber + 12345;
-  return pickUnique(cities, 5, (i) => seededRandom(seed + i * 100));
+export function getDailyCities(dayNumber = getDayNumber(), difficulty = 'easy') {
+  const easy = pickUnique(cities, 5, (i) => seededRandom(dayNumber + 12345 + i * 100));
+  if (difficulty !== 'hard') return easy;
+
+  const taken = new Set(easy.map((city) => `${city.name}|${city.lat}|${city.lng}`));
+  const remaining = cities.filter((city) => !taken.has(`${city.name}|${city.lat}|${city.lng}`));
+  return pickUnique(remaining, 5, (i) => seededRandom(dayNumber + 67890 + i * 100));
 }
 
-export function getRandomCities(count = 5) {
-  return pickUnique(cities, count, () => Math.random());
+const SEED_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const SEED_LENGTH = 6;
+
+export function generateGameSeed() {
+  const values = new Uint32Array(SEED_LENGTH);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(values);
+  } else {
+    for (let i = 0; i < SEED_LENGTH; i++) values[i] = Math.floor(Math.random() * 0xffffffff);
+  }
+  return Array.from(values, (n) => SEED_ALPHABET[n % SEED_ALPHABET.length]).join('');
+}
+
+export function normalizeSeed(input) {
+  return String(input ?? '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+}
+
+export function parseSeedInput(value) {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) return '';
+  try {
+    const url = new URL(trimmed);
+    const fromQuery = url.searchParams.get('seed');
+    if (fromQuery) return normalizeSeed(fromQuery);
+  } catch {
+    // Plain seed text, not a URL
+  }
+  return normalizeSeed(trimmed);
+}
+
+export function seedToNumber(seed) {
+  const normalized = normalizeSeed(seed);
+  let hash = 2166136261;
+  for (let i = 0; i < normalized.length; i++) {
+    hash ^= normalized.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+export function getSeededCities(seed, count = 5) {
+  const numeric = seedToNumber(seed);
+  return pickUnique(cities, count, (i) => seededRandom(numeric + i * 100 + 7919));
+}
+
+export function getRandomCities(count = 5, seed = generateGameSeed()) {
+  return getSeededCities(seed, count);
+}
+
+export function writeSeedToUrl(seed) {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  const normalized = normalizeSeed(seed);
+  if (normalized) url.searchParams.set('seed', normalized);
+  else url.searchParams.delete('seed');
+  const next = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState(null, '', next);
+}
+
+export function readSeedFromUrl() {
+  if (typeof window === 'undefined') return '';
+  try {
+    return normalizeSeed(new URLSearchParams(window.location.search).get('seed'));
+  } catch {
+    return '';
+  }
 }
 
 // Get emoji for score
@@ -135,11 +205,24 @@ export function formatDistance(km) {
   return `${Math.round(km).toLocaleString()} km`;
 }
 
-export function generateShareText(rounds, dayNumber) {
+export function generateShareText(rounds, dayNumber, { gameMode, seed, difficulty } = {}) {
   const emojis = rounds.map(r => getScoreEmoji(r.score)).join('  ');
   const totalScore = rounds.reduce((sum, r) => sum + r.score, 0);
-  
-  return `CityTap #${dayNumber}\n${emojis}\nTotal: ${totalScore}/500`;
+  const normalized = normalizeSeed(seed);
+  const hardLabel = difficulty === 'hard' ? ' Hard' : '';
+
+  if (gameMode === 'random' && normalized) {
+    let origin = '';
+    try {
+      origin = window.location.origin;
+    } catch {
+      origin = '';
+    }
+    const link = origin ? `\n${origin}/?seed=${normalized}` : '';
+    return `CitySnipe${hardLabel}\n${emojis}\nTotal: ${totalScore}/500\nSeed: ${normalized}${link}`;
+  }
+
+  return `CitySnipe${hardLabel} #${dayNumber}\n${emojis}\nTotal: ${totalScore}/500`;
 }
 
 function foldName(value) {

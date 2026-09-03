@@ -5,15 +5,20 @@ import RevealScreen from './RevealScreen';
 import ResultsScreen from './ResultsScreen';
 import ThemeToggle from './ThemeToggle';
 import ModeToggle from './ModeToggle';
+import DifficultyToggle from './DifficultyToggle';
+import BrandMark from './BrandMark';
 import {
   getDailyCities,
-  getRandomCities,
+  getSeededCities,
+  generateGameSeed,
+  normalizeSeed,
+  writeSeedToUrl,
   getDayNumber,
   calculateDistance,
   calculateFinalScore,
   loadGuessableCities
 } from '../utils/gameLogic';
-import { loadDailyProgress, saveDailyProgress } from '../utils/dailyProgress';
+import { loadDailyProgress, saveDailyProgress, isDailyFinished } from '../utils/dailyProgress';
 
 const TOTAL_ROUNDS = 5;
 
@@ -22,9 +27,9 @@ function pinIndex(gameState, roundsLength) {
   return Math.min(Math.max(roundsLength - 1, 0), TOTAL_ROUNDS - 1);
 }
 
-function emptyDaily(dayNumber) {
+function emptyDaily(dayNumber, difficulty = 'easy') {
   return {
-    gameCities: getDailyCities(dayNumber),
+    gameCities: getDailyCities(dayNumber, difficulty),
     gameState: 'playing',
     rounds: [],
     currentGuess: null,
@@ -33,9 +38,9 @@ function emptyDaily(dayNumber) {
   };
 }
 
-function restoredDaily(dayNumber) {
-  const saved = loadDailyProgress(dayNumber);
-  if (!saved) return emptyDaily(dayNumber);
+function restoredDaily(dayNumber, difficulty = 'easy') {
+  const saved = loadDailyProgress(dayNumber, difficulty);
+  if (!saved) return emptyDaily(dayNumber, difficulty);
   const rounds = saved.rounds ?? [];
   let gameState = saved.gameState ?? 'playing';
   let currentGuess = saved.currentGuess ?? null;
@@ -52,7 +57,7 @@ function restoredDaily(dayNumber) {
   }
 
   return {
-    gameCities: getDailyCities(dayNumber),
+    gameCities: getDailyCities(dayNumber, difficulty),
     gameState,
     rounds,
     currentGuess,
@@ -61,10 +66,30 @@ function restoredDaily(dayNumber) {
   };
 }
 
-function CityTapGame({ intro = false }) {
+function emptyRandom(seed) {
+  const normalized = normalizeSeed(seed) || generateGameSeed();
+  return {
+    seed: normalized,
+    gameCities: getSeededCities(normalized, TOTAL_ROUNDS),
+    gameState: 'playing',
+    rounds: [],
+    currentGuess: null,
+    guessedCities: [],
+    correctCities: []
+  };
+}
+
+function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficulty = 'easy', hardZoom = 5.8, onDifficultyChange, onHardZoomChange }) {
   const [dayNumber] = useState(getDayNumber);
-  const [boot] = useState(() => restoredDaily(getDayNumber()));
-  const [gameMode, setGameMode] = useState('daily');
+  const [boot] = useState(() => {
+    const seeded = normalizeSeed(initialSeed);
+    return seeded ? emptyRandom(seeded) : restoredDaily(getDayNumber(), difficulty);
+  });
+  const [gameMode, setGameMode] = useState(normalizeSeed(initialSeed) ? 'random' : 'daily');
+  const [gameSeed, setGameSeed] = useState(boot.seed ?? '');
+  const [seedCopied, setSeedCopied] = useState(false);
+  const [hardInterlude, setHardInterlude] = useState(false);
+  const [interludeLeaving, setInterludeLeaving] = useState(false);
   const [gameCities, setGameCities] = useState(boot.gameCities);
   const [gameState, setGameState] = useState(boot.gameState);
   const [rounds, setRounds] = useState(boot.rounds);
@@ -72,6 +97,8 @@ function CityTapGame({ intro = false }) {
   const [guessedCities, setGuessedCities] = useState(boot.guessedCities);
   const [correctCities, setCorrectCities] = useState(boot.correctCities);
   const guessLock = useRef(false);
+  const dailyDiffRef = useRef(difficulty);
+  const interludeTimers = useRef([]);
 
   const currentRound = pinIndex(gameState, rounds.length);
   const currentCity = gameState === 'playing' ? gameCities[rounds.length] ?? null : null;
@@ -79,6 +106,25 @@ function CityTapGame({ intro = false }) {
   useEffect(() => {
     loadGuessableCities();
   }, []);
+
+  useEffect(() => {
+    const seed = normalizeSeed(splashSeed);
+    if (!seed) return;
+    startRandomGame(seed);
+  }, [splashSeed]);
+
+  useEffect(() => {
+    if (gameMode !== 'daily') {
+      dailyDiffRef.current = difficulty;
+      return;
+    }
+    if (dailyDiffRef.current === difficulty) return;
+    dailyDiffRef.current = difficulty;
+    guessLock.current = false;
+    setHardInterlude(false);
+    setInterludeLeaving(false);
+    applyState(restoredDaily(dayNumber, difficulty));
+  }, [difficulty, gameMode, dayNumber]);
 
   useEffect(() => {
     if (gameState === 'playing' && rounds.length >= TOTAL_ROUNDS) {
@@ -99,7 +145,7 @@ function CityTapGame({ intro = false }) {
     saveDailyProgress({
       ...merged,
       currentRound: pinIndex(merged.gameState, (merged.rounds ?? []).length)
-    });
+    }, difficulty);
   };
 
   const applyState = (next) => {
@@ -155,17 +201,44 @@ function CityTapGame({ intro = false }) {
     }
   };
 
+  const clearInterludeTimers = () => {
+    interludeTimers.current.forEach(clearTimeout);
+    interludeTimers.current = [];
+  };
+
   const handleContinue = () => {
     guessLock.current = false;
     if (rounds.length < TOTAL_ROUNDS) {
-      setGameState('playing');
-      setCurrentGuess(null);
-      if (gameMode === 'daily') {
-        persistDaily({
-          gameState: 'playing',
-          currentGuess: null
-        });
+      const advance = () => {
+        setGameState('playing');
+        setCurrentGuess(null);
+        if (gameMode === 'daily') {
+          persistDaily({
+            gameState: 'playing',
+            currentGuess: null
+          });
+        }
+      };
+
+      if (difficulty === 'hard') {
+        const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        clearInterludeTimers();
+        setInterludeLeaving(false);
+        setHardInterlude(true);
+        setCurrentGuess(null);
+        const jumpAt = reduced ? 0 : 240;
+        const revealAt = reduced ? 0 : 780;
+        const hideAt = reduced ? 0 : 1080;
+        interludeTimers.current.push(setTimeout(advance, jumpAt));
+        interludeTimers.current.push(setTimeout(() => setInterludeLeaving(true), revealAt));
+        interludeTimers.current.push(setTimeout(() => {
+          setHardInterlude(false);
+          setInterludeLeaving(false);
+        }, hideAt));
+        return;
       }
+
+      advance();
       return;
     }
 
@@ -183,18 +256,18 @@ function CityTapGame({ intro = false }) {
     if (gameMode === 'daily') persistDaily({ gameState: 'review' });
   };
 
-  const startRandomGame = () => {
+  const startRandomGame = (seedArg) => {
+    const next = emptyRandom(seedArg);
     guessLock.current = false;
     setGameMode('random');
-    applyState({
-      gameCities: getRandomCities(5),
-      gameState: 'playing',
-      rounds: [],
-      currentGuess: null,
-      guessedCities: [],
-      correctCities: []
-    });
+    setGameSeed(next.seed);
+    writeSeedToUrl(next.seed);
+    applyState(next);
   };
+
+  useEffect(() => {
+    if (gameMode === 'random' && gameSeed) writeSeedToUrl(gameSeed);
+  }, [gameMode, gameSeed]);
 
   const handlePlayAgain = () => {
     if (gameMode !== 'random') return;
@@ -209,22 +282,64 @@ function CityTapGame({ intro = false }) {
     }
     guessLock.current = false;
     setGameMode(mode);
-    applyState(restoredDaily(dayNumber));
+    setGameSeed('');
+    writeSeedToUrl('');
+    applyState(restoredDaily(dayNumber, difficulty));
+  };
+
+  useEffect(() => () => clearInterludeTimers(), []);
+
+  const handleTryHard = () => {
+    if (onDifficultyChange) onDifficultyChange('hard');
+  };
+
+  const handleCopySeed = async () => {
+    if (!gameSeed) return;
+    try {
+      await navigator.clipboard.writeText(gameSeed);
+      setSeedCopied(true);
+      setTimeout(() => setSeedCopied(false), 1600);
+    } catch (err) {
+      console.error('Failed to copy seed:', err);
+    }
   };
 
   const runningScore = rounds.reduce((sum, r) => sum + r.score, 0);
   const finished = gameState === 'results' || gameState === 'review';
+  const hard = difficulty === 'hard';
+  const showHistory = !hard || finished;
+  const visibleGuesses = showHistory
+    ? guessedCities
+    : (gameState === 'reveal' && currentGuess ? [currentGuess.guessedCity] : []);
+  const visibleCorrect = showHistory
+    ? correctCities
+    : (gameState === 'reveal' && currentGuess ? [currentGuess.correctCity] : []);
+  const hardDailyDone = isDailyFinished(dayNumber, 'hard');
+  const showTryHard = gameMode === 'daily' && difficulty === 'easy' && finished && !hardDailyDone;
   const scoreMax = finished ? TOTAL_ROUNDS * 100 : rounds.length * 100;
+  const modeLabel = [
+    gameMode === 'daily' ? `#${dayNumber} · Daily` : `Random · ${gameSeed}`,
+    hard ? 'Hard' : null
+  ].filter(Boolean).join(' · ');
 
   return (
     <div className="game-shell">
       {!intro && (
         <header className="game-header">
           <div className="game-header-inner">
-            <div>
-              <h1 className="game-wordmark">CityTap</h1>
-              <div className="game-subtitle">
-                {gameMode === 'daily' ? `#${dayNumber} · Daily` : 'Random · Testing'}
+            <div className="game-brand">
+              <BrandMark size={32} />
+              <div>
+                <h1 className="game-wordmark">CitySnipe</h1>
+                <div className="game-subtitle">
+                  {gameMode === 'daily' ? (
+                    modeLabel
+                  ) : (
+                    <button type="button" className="game-seed-btn" onClick={handleCopySeed}>
+                      {modeLabel}{seedCopied ? ' · Copied' : ''}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
             <div className="game-header-right">
@@ -237,6 +352,12 @@ function CityTapGame({ intro = false }) {
                   <span>/{scoreMax}</span>
                 </div>
               </div>
+              <DifficultyToggle
+                difficulty={difficulty}
+                onChange={onDifficultyChange}
+                hardZoom={hardZoom}
+                onHardZoomChange={onHardZoomChange}
+              />
               <ModeToggle mode={gameMode} onChange={handleGameModeChange} />
               <ThemeToggle />
             </div>
@@ -246,14 +367,19 @@ function CityTapGame({ intro = false }) {
 
       <Globe
         intro={intro}
+        hard={hard}
+        hardZoom={hardZoom}
+        recap={finished}
+        cover={hardInterlude && !interludeLeaving}
+        rounds={rounds}
         currentCity={currentCity}
-        guessedCities={guessedCities}
-        correctCities={correctCities}
+        guessedCities={visibleGuesses}
+        correctCities={visibleCorrect}
         revealPair={gameState === 'reveal' ? currentGuess : null}
-        focusKey={`${gameState}-${currentRound}-${currentCity?.lat ?? 'x'}-${currentCity?.lng ?? 'x'}`}
+        focusKey={`${gameState}-${currentRound}-${currentCity?.lat ?? 'x'}-${currentCity?.lng ?? 'x'}-${hard ? 'h' : 'e'}`}
       />
 
-      {gameState === 'playing' && !intro && (
+      {gameState === 'playing' && !intro && !hardInterlude && (
         <div className="search-dock">
           <div className="search-hint">Name the nearest city</div>
           <SearchBox key={currentRound} onSubmit={handleGuess} disabled={false} />
@@ -275,10 +401,23 @@ function CityTapGame({ intro = false }) {
           rounds={rounds}
           dayNumber={dayNumber}
           gameMode={gameMode}
+          difficulty={difficulty}
+          seed={gameSeed}
           onViewMap={handleViewMap}
           onPlayAgain={handlePlayAgain}
-          onPlayRandom={startRandomGame}
+          onPlayRandom={() => startRandomGame()}
+          onPlaySeed={startRandomGame}
+          onTryHard={showTryHard ? handleTryHard : undefined}
         />
+      )}
+
+      {hardInterlude && (
+        <div className={`round-load${interludeLeaving ? ' is-leaving' : ''}`}>
+          <div className="round-load-card">
+            <BrandMark size={44} />
+            <p>Next location</p>
+          </div>
+        </div>
       )}
 
       {gameState === 'review' && !intro && (

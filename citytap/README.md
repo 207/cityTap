@@ -1,10 +1,10 @@
-# CityTap
+# CitySnipe
 
 A reverse geography game where the globe drops a pin and you name the nearest city.
 
 ## Concept
 
-CityTap inverts Maptap: instead of placing a pin on a map for a given city name, the game drops a pin on an unlabeled globe and you must identify the city by typing its name.
+CitySnipe inverts Maptap: instead of placing a pin on a map for a given city name, the game drops a pin on an unlabeled globe and you must identify the city by typing its name.
 
 ## Features
 
@@ -14,6 +14,7 @@ CityTap inverts Maptap: instead of placing a pin on a map for a given city name,
 - **Distance Scoring**: Score based on proximity to correct city (0-100 points per round)
 - **Country Bonus**: +10 bonus points for guessing a city in the correct country
 - **Shareable Results**: Copy emoji-formatted results to share with friends
+- **Seeded Random**: Share a seed so someone else can play the same five cities
 - **Persistent Pins**: Previous guesses and correct cities remain visible on the globe
 
 ## Installation

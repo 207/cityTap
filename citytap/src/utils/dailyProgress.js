@@ -5,6 +5,10 @@ function cityKey(city) {
   return `${city.name}|${city.lat}|${city.lng}`;
 }
 
+function slotName(difficulty) {
+  return difficulty === 'hard' ? 'hard' : 'easy';
+}
+
 function isValidProgress(data, dayNumber) {
   if (data?.dayNumber !== dayNumber || !Array.isArray(data.rounds)) return false;
   if (data.rounds.length > 5) return false;
@@ -19,6 +23,10 @@ function isValidProgress(data, dayNumber) {
   return true;
 }
 
+function emptyStore(dayNumber) {
+  return { dayNumber, easy: null, hard: null };
+}
+
 function clearDailyProgress() {
   try {
     localStorage.removeItem(STORAGE_KEY);
@@ -27,31 +35,59 @@ function clearDailyProgress() {
   }
 }
 
-export function loadDailyProgress(dayNumber) {
+function readStore(dayNumber) {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
+    if (!raw) return emptyStore(dayNumber);
     const data = JSON.parse(raw);
-    if (!isValidProgress(data, dayNumber)) {
+    if (data?.dayNumber !== dayNumber) {
       clearDailyProgress();
-      return null;
+      return emptyStore(dayNumber);
     }
-    return data;
+
+    if (Array.isArray(data.rounds)) {
+      return {
+        dayNumber,
+        easy: isValidProgress(data, dayNumber) ? data : null,
+        hard: null
+      };
+    }
+
+    const easy = data.easy && isValidProgress({ ...data.easy, dayNumber }, dayNumber) ? data.easy : null;
+    const hard = data.hard && isValidProgress({ ...data.hard, dayNumber }, dayNumber) ? data.hard : null;
+    return { dayNumber, easy, hard };
   } catch {
     clearDailyProgress();
-    return null;
+    return emptyStore(dayNumber);
   }
 }
 
-export function saveDailyProgress(progress) {
+function writeStore(store) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
   } catch {
     // Ignore blocked storage
   }
 }
 
-export function isDailyFinished(dayNumber) {
-  const data = loadDailyProgress(dayNumber);
+export function loadDailyProgress(dayNumber, difficulty = 'easy') {
+  return readStore(dayNumber)[slotName(difficulty)];
+}
+
+export function saveDailyProgress(progress, difficulty = 'easy') {
+  if (!progress?.dayNumber) return;
+  const store = readStore(progress.dayNumber);
+  store[slotName(difficulty)] = progress;
+  writeStore(store);
+}
+
+export function isDailyFinished(dayNumber, difficulty = 'easy') {
+  const data = loadDailyProgress(dayNumber, difficulty);
   return data?.gameState === 'results' || data?.gameState === 'review';
+}
+
+export function isDailyInProgress(dayNumber, difficulty = 'easy') {
+  if (isDailyFinished(dayNumber, difficulty)) return false;
+  const data = loadDailyProgress(dayNumber, difficulty);
+  return (data?.rounds?.length ?? 0) > 0 || data?.gameState === 'reveal';
 }

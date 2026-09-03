@@ -1,23 +1,29 @@
 import { useState } from 'react';
-import { formatDistance, generateShareText, getScoreEmoji, getScoreTone } from '../utils/gameLogic';
+import { formatDistance, generateShareText, getScoreEmoji, getScoreTone, parseSeedInput } from '../utils/gameLogic';
 import { useCountUp } from '../utils/useCountUp';
 
 function ResultsScreen({
   rounds,
   dayNumber,
   gameMode,
+  difficulty = 'easy',
+  seed,
   onViewMap,
   onPlayAgain,
   onPlayRandom,
+  onPlaySeed,
+  onTryHard,
   shareBuilder = generateShareText
 }) {
   const [copied, setCopied] = useState(false);
+  const [seedCopied, setSeedCopied] = useState(false);
+  const [seedInput, setSeedInput] = useState('');
   const totalScore = rounds.reduce((sum, r) => sum + r.score, 0);
   const shownScore = useCountUp(totalScore, 1100);
   const totalTone = getScoreTone(Math.round(totalScore / Math.max(rounds.length, 1)));
 
   const handleShare = async () => {
-    const shareText = shareBuilder(rounds, dayNumber);
+    const shareText = shareBuilder(rounds, dayNumber, { gameMode, seed, difficulty });
     try {
       await navigator.clipboard.writeText(shareText);
       setCopied(true);
@@ -27,11 +33,30 @@ function ResultsScreen({
     }
   };
 
+  const handleCopySeed = async () => {
+    if (!seed) return;
+    try {
+      await navigator.clipboard.writeText(seed);
+      setSeedCopied(true);
+      setTimeout(() => setSeedCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy seed:', err);
+    }
+  };
+
+  const handlePlaySeed = (event) => {
+    event.preventDefault();
+    const parsed = parseSeedInput(seedInput);
+    if (!parsed || !onPlaySeed) return;
+    onPlaySeed(parsed);
+  };
+
   return (
     <div className="results-overlay">
       <div className="results-card">
         <div className="results-kicker">
-          {gameMode === 'daily' ? `Daily #${dayNumber}` : 'Random game'}
+          {gameMode === 'daily' ? `Daily #${dayNumber}` : `Random · ${seed}`}
+          {difficulty === 'hard' ? ' · Hard' : ''}
         </div>
         <h1 className="results-title">
           {gameMode === 'daily' ? "Today's score" : 'Round complete'}
@@ -49,7 +74,21 @@ function ResultsScreen({
         </div>
 
         {gameMode === 'daily' && (
-          <p className="results-tomorrow">Come back tomorrow for a new daily</p>
+          <p className="results-tomorrow">
+            {onTryHard
+              ? 'Hard is a different set of cities today'
+              : 'Come back tomorrow for a new daily'}
+          </p>
+        )}
+
+        {gameMode === 'random' && seed && (
+          <div className="results-seed">
+            <span className="results-seed-label">Seed</span>
+            <code className="results-seed-code">{seed}</code>
+            <button type="button" className="results-seed-copy" onClick={handleCopySeed}>
+              {seedCopied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
         )}
 
         <div className="results-rounds">
@@ -75,9 +114,32 @@ function ResultsScreen({
           })}
         </div>
 
+        {onPlaySeed && (
+          <form className="results-seed-form" onSubmit={handlePlaySeed}>
+            <input
+              className="results-seed-input"
+              value={seedInput}
+              onChange={(event) => setSeedInput(event.target.value)}
+              placeholder="Enter a seed"
+              aria-label="Game seed"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck="false"
+            />
+            <button type="submit" className="results-seed-play" disabled={!parseSeedInput(seedInput)}>
+              Play seed
+            </button>
+          </form>
+        )}
+
         <div className="results-actions">
+          {onTryHard && (
+            <button className="results-play" onClick={onTryHard}>
+              Give Hard a try
+            </button>
+          )}
           {gameMode === 'daily' && onPlayRandom && (
-            <button className="results-play" onClick={onPlayRandom}>
+            <button className={onTryHard ? 'results-secondary' : 'results-play'} onClick={onPlayRandom}>
               Play random
             </button>
           )}
@@ -89,7 +151,7 @@ function ResultsScreen({
           </button>
           {gameMode === 'random' && (
             <button className="results-secondary" onClick={onPlayAgain}>
-              Play again
+              New seed
             </button>
           )}
         </div>
