@@ -40,6 +40,18 @@ body {
   background: rgb(11, 11, 25);
 }
 
+.game-shell.can-peek {
+  -webkit-touch-callout: none;
+}
+
+.game-shell.is-peeking .game-header,
+.game-shell.is-peeking .search-dock,
+.game-shell.is-peeking .reveal-panel,
+.game-shell.is-peeking .show-results-chip {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .globe-shell,
 .globe-root {
   background: rgb(11, 11, 25);
@@ -93,8 +105,45 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   color: var(--text-muted);
+}
+
+.round-load-mark {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+}
+
+.round-load-mark .brand-mark {
+  position: relative;
+  z-index: 1;
+}
+
+.round-load-spin {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  border-top-color: var(--accent);
+  border-right-color: color-mix(in srgb, #ef4444 70%, var(--accent));
+  animation: round-load-spin 0.9s linear infinite;
+}
+
+.round-load-spin::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-bottom-color: color-mix(in srgb, #ef4444 75%, transparent);
+  animation: round-load-spin 1.35s linear infinite reverse;
+}
+
+@keyframes round-load-spin {
+  to { transform: rotate(360deg); }
 }
 
 .round-load-card p {
@@ -103,6 +152,12 @@ body {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  animation: round-load-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes round-load-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
 }
 
 .globe-shell.is-locked .globe-root {
@@ -118,6 +173,7 @@ body {
   padding: 12px 16px;
   background: linear-gradient(to bottom, var(--surface-overlay), transparent);
   pointer-events: none;
+  transition: opacity 0.18s ease;
 }
 
 .game-header-inner {
@@ -252,7 +308,7 @@ body {
   z-index: 10;
   width: min(520px, calc(100vw - 32px));
   animation: dock-in 0.45s ease;
-  transition: bottom 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: bottom 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease;
 }
 
 .search-dock:has(.citytap-search.is-typing) {
@@ -305,6 +361,7 @@ body {
   font-weight: 700;
   padding: 12px 20px;
   border-radius: 999px;
+  transition: opacity 0.18s ease;
   cursor: pointer;
   backdrop-filter: blur(12px);
 }
@@ -322,32 +379,6 @@ body {
 .score-fill-ok { background: #eab308; }
 .score-fill-fair { background: #f97316; }
 .score-fill-miss { background: #ef4444; }
-
-.theme-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  margin-left: 16px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--toggle-bg);
-  color: var(--text);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background-color 0.2s, border-color 0.2s;
-}
-
-.theme-toggle:hover {
-  background: var(--toggle-hover);
-}
-
-.theme-toggle:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
 
 .citytap-search-input::placeholder {
   color: var(--text-muted);
@@ -405,6 +436,26 @@ body {
   align-items: flex-end;
 }
 
+.difficulty-toggle .mode-toggle-track button {
+  padding: 7px 9px;
+  font-size: 11px;
+}
+
+@keyframes diabolical-rainbow {
+  0% { color: #ef4444; }
+  14% { color: #f97316; }
+  28% { color: #eab308; }
+  42% { color: #22c55e; }
+  57% { color: #06b6d4; }
+  71% { color: #3b82f6; }
+  85% { color: #a855f7; }
+  100% { color: #ef4444; }
+}
+
+.difficulty-toggle .diabolical-mode {
+  animation: diabolical-rainbow 2.6s linear infinite;
+}
+
 .hard-zoom {
   display: inline-flex;
   align-items: center;
@@ -456,6 +507,7 @@ body {
   z-index: 20;
   width: min(520px, calc(100vw - 32px));
   pointer-events: none;
+  transition: opacity 0.18s ease;
 }
 
 .reveal-card {
@@ -678,6 +730,7 @@ body {
   padding: 88px 16px 24px;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.12) 55%, transparent);
   animation: fade-in 0.35s ease;
+  pointer-events: none;
 }
 
 .results-card {
@@ -693,6 +746,7 @@ body {
   backdrop-filter: blur(22px) saturate(1.25);
   -webkit-backdrop-filter: blur(22px) saturate(1.25);
   animation: card-up 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: auto;
 }
 
 .results-kicker {
@@ -963,11 +1017,32 @@ body {
     animation: none;
   }
 
+  .difficulty-toggle .diabolical-mode {
+    animation: none;
+    color: #a855f7;
+  }
+
+  .round-load-spin,
+  .round-load-spin::after,
+  .round-load-card p {
+    animation: none;
+  }
+
+  .round-load-card p {
+    opacity: 0.75;
+  }
+
   .splash {
     transition: none;
   }
 
   .search-dock {
+    transition: none;
+  }
+
+  .game-header,
+  .reveal-panel,
+  .show-results-chip {
     transition: none;
   }
 
@@ -1032,6 +1107,31 @@ body {
   font-weight: 800;
   letter-spacing: -0.05em;
   line-height: 1;
+}
+
+.splash-tittle {
+  position: relative;
+  display: inline-block;
+}
+
+.splash-tittle-letter {
+  display: inline-block;
+  clip-path: inset(0.2em 0 0 0);
+}
+
+.splash-tittle-mark {
+  position: absolute;
+  left: 50%;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 1;
+}
+
+.splash-tittle-dot .splash-tittle-mark {
+  top: 0.06em;
+  width: 0.36em;
+  height: 0.36em;
+  transform: translateX(-50%);
 }
 
 .splash-copy {

@@ -12,7 +12,8 @@ function ResultsScreen({
   onPlayAgain,
   onPlayRandom,
   onPlaySeed,
-  onTryHard,
+  onTryNext,
+  tryNextLabel,
   shareBuilder = generateShareText
 }) {
   const [copied, setCopied] = useState(false);
@@ -56,7 +57,7 @@ function ResultsScreen({
       <div className="results-card">
         <div className="results-kicker">
           {gameMode === 'daily' ? `Daily #${dayNumber}` : `Random · ${seed}`}
-          {difficulty === 'hard' ? ' · Hard' : ''}
+          {difficulty === 'hard' ? ' · Hard' : difficulty === 'diabolical' ? ' · Diabolical' : ''}
         </div>
         <h1 className="results-title">
           {gameMode === 'daily' ? "Today's score" : 'Round complete'}
@@ -75,8 +76,8 @@ function ResultsScreen({
 
         {gameMode === 'daily' && (
           <p className="results-tomorrow">
-            {onTryHard
-              ? 'Hard is a different set of cities today'
+            {onTryNext
+              ? `${tryNextLabel} is a different set of cities today`
               : 'Come back tomorrow for a new daily'}
           </p>
         )}
@@ -133,13 +134,13 @@ function ResultsScreen({
         )}
 
         <div className="results-actions">
-          {onTryHard && (
-            <button className="results-play" onClick={onTryHard}>
-              Give Hard a try
+          {onTryNext && (
+            <button className="results-play" onClick={onTryNext}>
+              Give {tryNextLabel} a try
             </button>
           )}
           {gameMode === 'daily' && onPlayRandom && (
-            <button className={onTryHard ? 'results-secondary' : 'results-play'} onClick={onPlayRandom}>
+            <button className={onTryNext ? 'results-secondary' : 'results-play'} onClick={onPlayRandom}>
               Play random
             </button>
           )}

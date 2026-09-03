@@ -105,13 +105,22 @@ function pickUnique(pool, count, rng) {
   return selectedCities;
 }
 
+function cityKey(city) {
+  return `${city.name}|${city.lat}|${city.lng}`;
+}
+
 export function getDailyCities(dayNumber = getDayNumber(), difficulty = 'easy') {
   const easy = pickUnique(cities, 5, (i) => seededRandom(dayNumber + 12345 + i * 100));
-  if (difficulty !== 'hard') return easy;
+  if (difficulty === 'easy') return easy;
 
-  const taken = new Set(easy.map((city) => `${city.name}|${city.lat}|${city.lng}`));
-  const remaining = cities.filter((city) => !taken.has(`${city.name}|${city.lat}|${city.lng}`));
-  return pickUnique(remaining, 5, (i) => seededRandom(dayNumber + 67890 + i * 100));
+  const taken = new Set(easy.map(cityKey));
+  const afterEasy = cities.filter((city) => !taken.has(cityKey(city)));
+  const hard = pickUnique(afterEasy, 5, (i) => seededRandom(dayNumber + 67890 + i * 100));
+  if (difficulty === 'hard') return hard;
+
+  hard.forEach((city) => taken.add(cityKey(city)));
+  const remaining = cities.filter((city) => !taken.has(cityKey(city)));
+  return pickUnique(remaining, 5, (i) => seededRandom(dayNumber + 24680 + i * 100));
 }
 
 const SEED_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -209,7 +218,11 @@ export function generateShareText(rounds, dayNumber, { gameMode, seed, difficult
   const emojis = rounds.map(r => getScoreEmoji(r.score)).join('  ');
   const totalScore = rounds.reduce((sum, r) => sum + r.score, 0);
   const normalized = normalizeSeed(seed);
-  const hardLabel = difficulty === 'hard' ? ' Hard' : '';
+  const modeLabel = difficulty === 'hard'
+    ? ' Hard'
+    : difficulty === 'diabolical'
+      ? ' Diabolical 😈'
+      : '';
 
   if (gameMode === 'random' && normalized) {
     let origin = '';
@@ -219,10 +232,10 @@ export function generateShareText(rounds, dayNumber, { gameMode, seed, difficult
       origin = '';
     }
     const link = origin ? `\n${origin}/?seed=${normalized}` : '';
-    return `CitySnipe${hardLabel}\n${emojis}\nTotal: ${totalScore}/500\nSeed: ${normalized}${link}`;
+    return `CitySnipe${modeLabel}\n${emojis}\nTotal: ${totalScore}/500\nSeed: ${normalized}${link}`;
   }
 
-  return `CitySnipe${hardLabel} #${dayNumber}\n${emojis}\nTotal: ${totalScore}/500`;
+  return `CitySnipe${modeLabel} #${dayNumber}\n${emojis}\nTotal: ${totalScore}/500`;
 }
 
 function foldName(value) {

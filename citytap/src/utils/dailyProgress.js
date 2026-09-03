@@ -6,7 +6,9 @@ function cityKey(city) {
 }
 
 function slotName(difficulty) {
-  return difficulty === 'hard' ? 'hard' : 'easy';
+  if (difficulty === 'hard') return 'hard';
+  if (difficulty === 'diabolical') return 'diabolical';
+  return 'easy';
 }
 
 function isValidProgress(data, dayNumber) {
@@ -24,7 +26,7 @@ function isValidProgress(data, dayNumber) {
 }
 
 function emptyStore(dayNumber) {
-  return { dayNumber, easy: null, hard: null };
+  return { dayNumber, easy: null, hard: null, diabolical: null };
 }
 
 function clearDailyProgress() {
@@ -49,13 +51,17 @@ function readStore(dayNumber) {
       return {
         dayNumber,
         easy: isValidProgress(data, dayNumber) ? data : null,
-        hard: null
+        hard: null,
+        diabolical: null
       };
     }
 
     const easy = data.easy && isValidProgress({ ...data.easy, dayNumber }, dayNumber) ? data.easy : null;
     const hard = data.hard && isValidProgress({ ...data.hard, dayNumber }, dayNumber) ? data.hard : null;
-    return { dayNumber, easy, hard };
+    const diabolical = data.diabolical && isValidProgress({ ...data.diabolical, dayNumber }, dayNumber)
+      ? data.diabolical
+      : null;
+    return { dayNumber, easy, hard, diabolical };
   } catch {
     clearDailyProgress();
     return emptyStore(dayNumber);

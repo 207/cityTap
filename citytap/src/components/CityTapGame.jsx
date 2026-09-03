@@ -3,7 +3,6 @@ import Globe from './Globe';
 import SearchBox from './SearchBox';
 import RevealScreen from './RevealScreen';
 import ResultsScreen from './ResultsScreen';
-import ThemeToggle from './ThemeToggle';
 import ModeToggle from './ModeToggle';
 import DifficultyToggle from './DifficultyToggle';
 import BrandMark from './BrandMark';
@@ -16,15 +15,31 @@ import {
   getDayNumber,
   calculateDistance,
   calculateFinalScore,
-  loadGuessableCities
+  loadGuessableCities,
+  seedToNumber
 } from '../utils/gameLogic';
 import { loadDailyProgress, saveDailyProgress, isDailyFinished } from '../utils/dailyProgress';
+import {
+  difficultyLabel,
+  getRoundOrientation,
+  isLockedDifficulty
+} from '../utils/difficulty';
 
 const TOTAL_ROUNDS = 5;
+const PEEK_HOLD_MS = 160;
 
 function pinIndex(gameState, roundsLength) {
   if (gameState === 'playing') return roundsLength;
   return Math.min(Math.max(roundsLength - 1, 0), TOTAL_ROUNDS - 1);
+}
+
+function isPeekBlockedTarget(target) {
+  if (!(target instanceof Element)) return true;
+  return Boolean(
+    target.closest(
+      'button, input, textarea, select, a, label, [role="button"], .citytap-search, .reveal-card, .results-overlay, .round-load'
+    )
+  );
 }
 
 function emptyDaily(dayNumber, difficulty = 'easy') {
@@ -90,6 +105,7 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
   const [seedCopied, setSeedCopied] = useState(false);
   const [hardInterlude, setHardInterlude] = useState(false);
   const [interludeLeaving, setInterludeLeaving] = useState(false);
+  const [peekMap, setPeekMap] = useState(false);
   const [gameCities, setGameCities] = useState(boot.gameCities);
   const [gameState, setGameState] = useState(boot.gameState);
   const [rounds, setRounds] = useState(boot.rounds);
@@ -99,6 +115,8 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
   const guessLock = useRef(false);
   const dailyDiffRef = useRef(difficulty);
   const interludeTimers = useRef([]);
+  const peekTimer = useRef(null);
+  const peekHolding = useRef(false);
 
   const currentRound = pinIndex(gameState, rounds.length);
   const currentCity = gameState === 'playing' ? gameCities[rounds.length] ?? null : null;
@@ -220,7 +238,7 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
         }
       };
 
-      if (difficulty === 'hard') {
+      if (isLockedDifficulty(difficulty)) {
         const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         clearInterludeTimers();
         setInterludeLeaving(false);
@@ -289,8 +307,57 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
 
   useEffect(() => () => clearInterludeTimers(), []);
 
-  const handleTryHard = () => {
-    if (onDifficultyChange) onDifficultyChange('hard');
+  const endPeek = () => {
+    peekHolding.current = false;
+    if (peekTimer.current) {
+      clearTimeout(peekTimer.current);
+      peekTimer.current = null;
+    }
+    setPeekMap(false);
+  };
+
+  useEffect(() => () => {
+    if (peekTimer.current) clearTimeout(peekTimer.current);
+  }, []);
+
+  useEffect(() => {
+    if (!isLockedDifficulty(difficulty) || hardInterlude || intro) endPeek();
+  }, [difficulty, hardInterlude, intro, gameState]);
+
+  const handleTryNext = (nextDifficulty) => {
+    if (onDifficultyChange) onDifficultyChange(nextDifficulty);
+  };
+
+  const locked = isLockedDifficulty(difficulty);
+  const canPeekMap = locked
+    && !intro
+    && !hardInterlude
+    && (gameState === 'playing' || gameState === 'reveal' || gameState === 'review');
+
+  const orientationSeed = gameMode === 'random' && gameSeed
+    ? seedToNumber(gameSeed)
+    : dayNumber * 104729 + 333;
+  const orientation = difficulty === 'diabolical'
+    ? getRoundOrientation(orientationSeed, currentRound)
+    : { bearing: 0, pitch: 0 };
+
+  const handlePeekPointerDown = (e) => {
+    if (!canPeekMap || e.button !== 0 || isPeekBlockedTarget(e.target)) return;
+    peekHolding.current = true;
+    if (peekTimer.current) clearTimeout(peekTimer.current);
+    peekTimer.current = setTimeout(() => {
+      if (peekHolding.current) setPeekMap(true);
+    }, PEEK_HOLD_MS);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handlePeekPointerEnd = () => {
+    if (!peekHolding.current && !peekMap) return;
+    endPeek();
   };
 
   const handleCopySeed = async () => {
@@ -306,24 +373,36 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
 
   const runningScore = rounds.reduce((sum, r) => sum + r.score, 0);
   const finished = gameState === 'results' || gameState === 'review';
-  const hard = difficulty === 'hard';
-  const showHistory = !hard || finished;
+  const showHistory = !locked || finished;
   const visibleGuesses = showHistory
     ? guessedCities
     : (gameState === 'reveal' && currentGuess ? [currentGuess.guessedCity] : []);
   const visibleCorrect = showHistory
     ? correctCities
     : (gameState === 'reveal' && currentGuess ? [currentGuess.correctCity] : []);
-  const hardDailyDone = isDailyFinished(dayNumber, 'hard');
-  const showTryHard = gameMode === 'daily' && difficulty === 'easy' && finished && !hardDailyDone;
+  const tryNextDifficulty = (() => {
+    if (gameMode !== 'daily' || !finished) return null;
+    if (difficulty === 'easy' && !isDailyFinished(dayNumber, 'hard')) return 'hard';
+    if (difficulty === 'hard' && !isDailyFinished(dayNumber, 'diabolical')) return 'diabolical';
+    return null;
+  })();
   const scoreMax = finished ? TOTAL_ROUNDS * 100 : rounds.length * 100;
   const modeLabel = [
     gameMode === 'daily' ? `#${dayNumber} · Daily` : `Random · ${gameSeed}`,
-    hard ? 'Hard' : null
+    locked ? difficultyLabel(difficulty) : null
   ].filter(Boolean).join(' · ');
 
   return (
-    <div className="game-shell">
+    <div
+      className={`game-shell${peekMap ? ' is-peeking' : ''}${canPeekMap ? ' can-peek' : ''}`}
+      onPointerDown={handlePeekPointerDown}
+      onPointerUp={handlePeekPointerEnd}
+      onPointerCancel={handlePeekPointerEnd}
+      onLostPointerCapture={handlePeekPointerEnd}
+      onContextMenu={(e) => {
+        if (peekMap || peekHolding.current) e.preventDefault();
+      }}
+    >
       {!intro && (
         <header className="game-header">
           <div className="game-header-inner">
@@ -359,7 +438,6 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
                 onHardZoomChange={onHardZoomChange}
               />
               <ModeToggle mode={gameMode} onChange={handleGameModeChange} />
-              <ThemeToggle />
             </div>
           </div>
         </header>
@@ -367,8 +445,10 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
 
       <Globe
         intro={intro}
-        hard={hard}
+        hard={locked}
         hardZoom={hardZoom}
+        bearing={orientation.bearing}
+        pitch={orientation.pitch}
         recap={finished}
         cover={hardInterlude && !interludeLeaving}
         rounds={rounds}
@@ -376,7 +456,7 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
         guessedCities={visibleGuesses}
         correctCities={visibleCorrect}
         revealPair={gameState === 'reveal' ? currentGuess : null}
-        focusKey={`${gameState}-${currentRound}-${currentCity?.lat ?? 'x'}-${currentCity?.lng ?? 'x'}-${hard ? 'h' : 'e'}`}
+        focusKey={`${gameState}-${currentRound}-${currentCity?.lat ?? 'x'}-${currentCity?.lng ?? 'x'}-${difficulty}-${orientation.bearing}-${orientation.pitch}`}
       />
 
       {gameState === 'playing' && !intro && !hardInterlude && (
@@ -407,14 +487,18 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
           onPlayAgain={handlePlayAgain}
           onPlayRandom={() => startRandomGame()}
           onPlaySeed={startRandomGame}
-          onTryHard={showTryHard ? handleTryHard : undefined}
+          onTryNext={tryNextDifficulty ? () => handleTryNext(tryNextDifficulty) : undefined}
+          tryNextLabel={tryNextDifficulty ? difficultyLabel(tryNextDifficulty) : undefined}
         />
       )}
 
       {hardInterlude && (
         <div className={`round-load${interludeLeaving ? ' is-leaving' : ''}`}>
           <div className="round-load-card">
-            <BrandMark size={44} />
+            <div className="round-load-mark">
+              <span className="round-load-spin" aria-hidden="true" />
+              <BrandMark size={44} />
+            </div>
             <p>Next location</p>
           </div>
         </div>

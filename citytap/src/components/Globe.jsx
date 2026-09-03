@@ -192,6 +192,8 @@ function Globe({
   intro = false,
   hard = false,
   hardZoom = 5.8,
+  bearing = 0,
+  pitch = 0,
   recap = false,
   cover = false,
   rounds = [],
@@ -215,6 +217,8 @@ function Globe({
   useLayoutEffect(() => {
     if (cover || (hard && !intro && !recap && currentCity && !revealPair)) {
       setVeil(true);
+    } else if (recap || intro) {
+      setVeil(false);
     }
   }, [cover, hard, intro, recap, currentCity, revealPair, focusKey]);
 
@@ -352,11 +356,11 @@ function Globe({
     let raf = 0;
     let last = 0;
     let spinning = !recap;
-    const degPerSec = recap ? 4.1 : 3.2;
+    const degPerSec = recap ? 3.4 : 3.2;
     const spinDelay = recap
       ? setTimeout(() => {
           spinning = true;
-        }, 1900)
+        }, 1600)
       : 0;
 
     const tick = (now) => {
@@ -377,7 +381,9 @@ function Globe({
         const center = instance.getCenter();
         instance.jumpTo({
           center: [center.lng + degPerSec * dt, center.lat],
-          zoom: recapRef.current ? Math.min(instance.getZoom(), RECAP_ZOOM + 0.15) : instance.getZoom()
+          zoom: recapRef.current ? Math.min(instance.getZoom(), RECAP_ZOOM + 0.15) : instance.getZoom(),
+          pitch: recapRef.current ? 0 : instance.getPitch(),
+          bearing: recapRef.current ? 0 : instance.getBearing()
         });
       }
       raf = requestAnimationFrame(tick);
@@ -404,6 +410,7 @@ function Globe({
       if (cancelled || introRef.current || !styleReady(instance)) return;
 
       if (recap) {
+        setVeil(false);
         instance.stop();
         clearLine(instance, REVEAL_LINE_ID);
         setRecapLines(instance, rounds);
@@ -412,7 +419,7 @@ function Globe({
           center: RECAP_CENTER,
           zoom: RECAP_ZOOM,
           pitch: 0,
-          bearing: instance.getBearing(),
+          bearing: 0,
           duration: reduced ? 0 : 1800,
           essential: true
         });
@@ -491,8 +498,8 @@ function Globe({
             instance.jumpTo({
               center: [target.lng, target.lat],
               zoom: hardZoom,
-              pitch: 0,
-              bearing: 0
+              pitch,
+              bearing
             });
             later(() => {
               if (!cancelled && !cover) setVeil(false);
@@ -535,7 +542,7 @@ function Globe({
       timers.forEach(clearTimeout);
       instance.off('load', tryMove);
     };
-  }, [currentCity, revealPair, intro, focusKey, hard, recap, recap ? rounds.length : 0]);
+  }, [currentCity, revealPair, intro, focusKey, hard, hardZoom, bearing, pitch, recap, recap ? rounds.length : 0]);
 
   useEffect(() => {
     const instance = map.current;
@@ -544,10 +551,10 @@ function Globe({
     instance.jumpTo({
       center: [currentCity.lng, currentCity.lat],
       zoom: hardZoom,
-      pitch: 0,
-      bearing: 0
+      pitch,
+      bearing
     });
-  }, [hardZoom, hard, currentCity, intro, recap, revealPair]);
+  }, [hardZoom, hard, bearing, pitch, currentCity, intro, recap, revealPair]);
 
   const coverRef = useRef(false);
 

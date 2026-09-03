@@ -3,7 +3,6 @@ import MysteryMap from './MysteryMap';
 import GuessGlobe from './GuessGlobe';
 import MapZoomReveal from './MapZoomReveal';
 import ResultsScreen from './ResultsScreen';
-import ThemeToggle from './ThemeToggle';
 import ModeToggle from './ModeToggle';
 import HomeButton from './HomeButton';
 import { formatDistance, getDayNumber } from '../utils/gameLogic';
@@ -173,7 +172,6 @@ function MapZoomGame({ onBack }) {
               </div>
             </div>
             <ModeToggle mode={gameMode} onChange={handleGameModeChange} />
-            <ThemeToggle />
           </div>
         </div>
       </header>

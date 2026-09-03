@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getDayNumber, parseSeedInput } from '../utils/gameLogic';
 import { isDailyFinished, isDailyInProgress } from '../utils/dailyProgress';
+import { DIFFICULTIES, difficultyLabel } from '../utils/difficulty';
 import BrandMark from './BrandMark';
 import DifficultyToggle from './DifficultyToggle';
 
@@ -12,9 +13,8 @@ function Splash({ onPlay, onPlaySeed, onGone, difficulty = 'easy', onDifficultyC
   const [seedInput, setSeedInput] = useState('');
   const finished = isDailyFinished(dayNumber, difficulty);
   const inProgress = isDailyInProgress(dayNumber, difficulty);
-  const otherDone = difficulty === 'easy'
-    ? isDailyFinished(dayNumber, 'hard')
-    : isDailyFinished(dayNumber, 'easy');
+  const allDone = DIFFICULTIES.every((mode) => isDailyFinished(dayNumber, mode));
+  const label = difficultyLabel(difficulty);
 
   const handlePlay = () => {
     if (leaving) return;
@@ -34,17 +34,19 @@ function Splash({ onPlay, onPlaySeed, onGone, difficulty = 'easy', onDifficultyC
       <div className="splash-panel">
         <BrandMark size={72} className="splash-mark" />
         <p className="splash-kicker">Daily #{dayNumber}</p>
-        <h1 className="splash-wordmark">CitySnipe</h1>
+        <h1 className="splash-wordmark">
+          CitySn<span className="splash-tittle splash-tittle-dot"><span className="splash-tittle-letter">i</span><svg className="splash-tittle-mark" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7.2" fill="#ef4444"/><circle cx="8" cy="8" r="4.8" fill="#f8fafc"/><circle cx="8" cy="8" r="2.7" fill="#ef4444"/><circle cx="8" cy="8" r="1.15" fill="#b91c1c"/></svg></span>pe
+        </h1>
         <p className="splash-copy">
           {finished
-            ? (otherDone ? 'You already played today' : `${difficulty === 'hard' ? 'Hard' : 'Easy'} complete`)
+            ? (allDone ? 'You already played today' : `${label} complete`)
             : 'Name the nearest city'}
         </p>
         {onDifficultyChange && (
           <DifficultyToggle difficulty={difficulty} onChange={onDifficultyChange} />
         )}
         <button type="button" className="splash-play" onClick={handlePlay}>
-          {finished ? 'See score' : inProgress ? 'Continue' : `Play ${difficulty === 'hard' ? 'Hard' : 'Easy'}`}
+          {finished ? 'See score' : inProgress ? 'Continue' : `Play ${label}`}
         </button>
         {onPlaySeed && (
           <form

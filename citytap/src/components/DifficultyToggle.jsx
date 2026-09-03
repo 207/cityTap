@@ -1,6 +1,8 @@
-import { HARD_ZOOM_PRESETS, SHOW_HARD_ZOOM_CONTROLS } from '../utils/difficulty';
+import { HARD_ZOOM_PRESETS, SHOW_HARD_ZOOM_CONTROLS, isLockedDifficulty } from '../utils/difficulty';
 
 function DifficultyToggle({ difficulty, onChange, hardZoom, onHardZoomChange }) {
+  const showZoom = SHOW_HARD_ZOOM_CONTROLS && isLockedDifficulty(difficulty) && onHardZoomChange;
+
   return (
     <div className="mode-toggle difficulty-toggle" role="group" aria-label="Difficulty">
       <span className="mode-toggle-label">Difficulty</span>
@@ -21,9 +23,17 @@ function DifficultyToggle({ difficulty, onChange, hardZoom, onHardZoomChange }) 
         >
           Hard
         </button>
+        <button
+          type="button"
+          className={`diabolical-mode${difficulty === 'diabolical' ? ' is-active' : ''}`}
+          aria-pressed={difficulty === 'diabolical'}
+          onClick={() => onChange('diabolical')}
+        >
+          Diabolical
+        </button>
       </div>
-      {SHOW_HARD_ZOOM_CONTROLS && difficulty === 'hard' && onHardZoomChange && (
-        <div className="hard-zoom" role="group" aria-label="Hard mode zoom for playtesting">
+      {showZoom && (
+        <div className="hard-zoom" role="group" aria-label="Locked mode zoom for playtesting">
           <span className="hard-zoom-label">Zoom</span>
           {HARD_ZOOM_PRESETS.map((zoom) => (
             <button
