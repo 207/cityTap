@@ -35,6 +35,7 @@ body {
 .game-shell {
   width: 100vw;
   height: 100vh;
+  height: 100dvh; /* Dynamic viewport height - adjusts for mobile browser UI */
   overflow: hidden;
   position: relative;
   background: rgb(11, 11, 25);
@@ -302,7 +303,7 @@ body {
 
 .search-dock {
   position: absolute;
-  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
@@ -312,7 +313,7 @@ body {
 }
 
 .search-dock:has(.citytap-search.is-typing) {
-  bottom: calc(256px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(200px + env(safe-area-inset-bottom, 0px));
 }
 
 .citytap-search {
@@ -1360,10 +1361,10 @@ body {
   }
 
   .search-dock {
-    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   }
 
   .search-dock:has(.citytap-search.is-typing) {
-    bottom: calc(272px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(196px + env(safe-area-inset-bottom, 0px));
   }
 }
