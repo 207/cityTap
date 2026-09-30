@@ -3,9 +3,10 @@ const EXCLUDE_RUSSIA_KEY = 'citysnipe-exclude-russia';
 export function readExcludeRussia() {
   try {
     const saved = localStorage.getItem(EXCLUDE_RUSSIA_KEY);
+    if (saved === null) return true; // Default to true
     return saved === 'true';
   } catch {
-    return false;
+    return true; // Default to true
   }
 }
 

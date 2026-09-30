@@ -5,7 +5,6 @@ import RevealScreen from './RevealScreen';
 import ResultsScreen from './ResultsScreen';
 import ModeToggle from './ModeToggle';
 import DifficultyToggle from './DifficultyToggle';
-import ExcludeRussiaToggle from './ExcludeRussiaToggle';
 import BrandMark from './BrandMark';
 import {
   getDailyCities,
@@ -453,10 +452,6 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
                 onChange={onDifficultyChange}
                 hardZoom={hardZoom}
                 onHardZoomChange={onHardZoomChange}
-              />
-              <ExcludeRussiaToggle
-                excludeRussia={excludeRussia}
-                onChange={onExcludeRussiaChange}
               />
               <ModeToggle mode={gameMode} onChange={handleGameModeChange} />
             </div>
