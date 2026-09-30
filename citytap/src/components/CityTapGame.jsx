@@ -5,6 +5,7 @@ import RevealScreen from './RevealScreen';
 import ResultsScreen from './ResultsScreen';
 import ModeToggle from './ModeToggle';
 import DifficultyToggle from './DifficultyToggle';
+import ExcludeRussiaToggle from './ExcludeRussiaToggle';
 import BrandMark from './BrandMark';
 import {
   getDailyCities,
@@ -94,7 +95,7 @@ function emptyRandom(seed) {
   };
 }
 
-function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficulty = 'easy', hardZoom = 5.8, onDifficultyChange, onHardZoomChange }) {
+function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficulty = 'easy', hardZoom = 5.8, excludeRussia = false, onDifficultyChange, onHardZoomChange, onExcludeRussiaChange }) {
   const [dayNumber] = useState(getDayNumber);
   const [boot] = useState(() => {
     const seeded = normalizeSeed(initialSeed);
@@ -437,6 +438,10 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
                 hardZoom={hardZoom}
                 onHardZoomChange={onHardZoomChange}
               />
+              <ExcludeRussiaToggle
+                excludeRussia={excludeRussia}
+                onChange={onExcludeRussiaChange}
+              />
               <ModeToggle mode={gameMode} onChange={handleGameModeChange} />
             </div>
           </div>
@@ -462,7 +467,7 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
       {gameState === 'playing' && !intro && !hardInterlude && (
         <div className="search-dock">
           <div className="search-hint">Name the nearest city</div>
-          <SearchBox key={currentRound} onSubmit={handleGuess} disabled={false} />
+          <SearchBox key={currentRound} onSubmit={handleGuess} disabled={false} excludeRussia={excludeRussia} />
         </div>
       )}
 

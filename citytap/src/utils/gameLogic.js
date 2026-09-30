@@ -18,9 +18,15 @@ export function cityQuotaForCountryPop(countryPop) {
   return 8;
 }
 
-export function buildPlayableCities(source = allCities) {
+export function buildPlayableCities(source = allCities, options = {}) {
+  const { excludeRussia = false } = options;
+  
+  const filtered = excludeRussia 
+    ? source.filter(city => city.country !== 'Russia')
+    : source;
+  
   const byCountry = new Map();
-  for (const city of source) {
+  for (const city of filtered) {
     const list = byCountry.get(city.country);
     if (list) list.push(city);
     else byCountry.set(city.country, [city]);
@@ -43,7 +49,16 @@ export function buildPlayableCities(source = allCities) {
   return playable;
 }
 
-const cities = buildPlayableCities();
+let cities = buildPlayableCities();
+let currentExcludeRussia = false;
+
+export function updatePlayableCities(excludeRussia = false) {
+  if (currentExcludeRussia !== excludeRussia) {
+    currentExcludeRussia = excludeRussia;
+    cities = buildPlayableCities(allCities, { excludeRussia });
+  }
+  return cities;
+}
 
 // Haversine formula for great-circle distance
 export function calculateDistance(lat1, lng1, lat2, lng2) {
@@ -262,14 +277,19 @@ export function loadGuessableCities() {
 }
 
 // Autocomplete uses a wide world list. Daily/random pins still use `cities`.
-export function searchCities(query) {
+export function searchCities(query, options = {}) {
+  const { excludeRussia = false } = options;
   const q = foldName(query).trim();
   if (!q || guessableCities.length === 0) return [];
 
   const starts = [];
   const partial = [];
+  
+  const searchList = excludeRussia
+    ? guessableCities.filter(city => city.country !== 'Russia')
+    : guessableCities;
 
-  for (const city of guessableCities) {
+  for (const city of searchList) {
     const names = citySearchNames(city);
     if (names.some((name) => name.startsWith(q))) starts.push(city);
     else if (names.some((name) => name.includes(q))) partial.push(city);

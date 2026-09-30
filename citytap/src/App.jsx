@@ -1,8 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import CityTapGame from './components/CityTapGame';
 import Splash from './components/Splash';
-import { readSeedFromUrl } from './utils/gameLogic';
+import { readSeedFromUrl, updatePlayableCities } from './utils/gameLogic';
 import { readDifficulty, readHardZoom, writeDifficulty, writeHardZoom } from './utils/difficulty';
+import { readExcludeRussia, writeExcludeRussia } from './utils/settings';
 import './App.css';
 
 function App() {
@@ -13,6 +14,12 @@ function App() {
   const [splashSeed, setSplashSeed] = useState('');
   const [difficulty, setDifficulty] = useState(readDifficulty);
   const [hardZoom, setHardZoom] = useState(readHardZoom);
+  const [excludeRussia, setExcludeRussia] = useState(readExcludeRussia);
+  
+  useEffect(() => {
+    updatePlayableCities(excludeRussia);
+  }, [excludeRussia]);
+  
   const startPlay = useCallback(() => setIntro(false), []);
   const hideSplash = useCallback(() => setShowSplash(false), []);
   const playSeed = useCallback((seed) => {
@@ -26,6 +33,10 @@ function App() {
   const handleHardZoom = useCallback((next) => {
     setHardZoom(writeHardZoom(next));
   }, []);
+  const handleExcludeRussia = useCallback((next) => {
+    writeExcludeRussia(next);
+    setExcludeRussia(next);
+  }, []);
 
   return (
     <>
@@ -35,8 +46,10 @@ function App() {
         splashSeed={splashSeed}
         difficulty={difficulty}
         hardZoom={hardZoom}
+        excludeRussia={excludeRussia}
         onDifficultyChange={handleDifficulty}
         onHardZoomChange={handleHardZoom}
+        onExcludeRussiaChange={handleExcludeRussia}
       />
       {showSplash && (
         <Splash

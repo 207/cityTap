@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { searchCities } from '../utils/gameLogic';
 
-function SearchBox({ onSubmit, disabled }) {
+function SearchBox({ onSubmit, disabled, excludeRussia = false }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -10,7 +10,7 @@ function SearchBox({ onSubmit, disabled }) {
 
   useEffect(() => {
     if (query.length > 0) {
-      const cities = searchCities(query);
+      const cities = searchCities(query, { excludeRussia });
       setResults(cities);
       setShowResults(true);
       setSelectedIndex(-1);
@@ -18,7 +18,7 @@ function SearchBox({ onSubmit, disabled }) {
       setResults([]);
       setShowResults(false);
     }
-  }, [query]);
+  }, [query, excludeRussia]);
 
   const handleSubmit = (city) => {
     if (city && onSubmit) {
