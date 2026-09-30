@@ -104,23 +104,26 @@ html, body, #root {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  
-  /* Custom property for viewport height that accounts for mobile browser UI */
-  --vh: 1vh;
 }
 
+html {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* Fixed so iOS can't leave the page scrolled after the keyboard closes. */
 body {
+  position: fixed;
+  inset: 0;
   margin: 0;
   display: flex;
   place-items: center;
   min-width: 320px;
-  min-height: 100vh;
-  min-height: 100dvh; /* Dynamic viewport height - adjusts for mobile browser UI */
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 #root {
   width: 100%;
-  height: 100vh;
-  height: 100dvh; /* Dynamic viewport height - adjusts for mobile browser UI */
+  height: 100%;
 }
