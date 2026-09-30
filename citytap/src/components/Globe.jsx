@@ -207,15 +207,21 @@ function Globe({
   const recapRef = useRef(recap);
   const hardRef = useRef(hard);
   const userControlRef = useRef(false);
+  const prevHardRef = useRef(hard);
+  const leavingLockedRef = useRef(false);
   introRef.current = intro;
   recapRef.current = recap;
   hardRef.current = hard;
+  if (prevHardRef.current !== hard) {
+    leavingLockedRef.current = prevHardRef.current && !hard && !intro;
+    prevHardRef.current = hard;
+  }
 
   const [veil, setVeil] = useState(false);
   const locked = hard && !intro && !recap;
 
   useLayoutEffect(() => {
-    if (cover || (hard && !intro && !recap && currentCity && !revealPair)) {
+    if (cover || leavingLockedRef.current || (hard && !intro && !recap && currentCity && !revealPair)) {
       setVeil(true);
     } else if (recap || intro) {
       setVeil(false);
@@ -406,7 +412,7 @@ function Globe({
       timers.push(setTimeout(fn, ms));
     };
 
-    const moveCamera = () => {
+    const moveCamera = (snap = false) => {
       if (cancelled || introRef.current || !styleReady(instance)) return;
 
       if (recap) {
@@ -420,7 +426,7 @@ function Globe({
           zoom: RECAP_ZOOM,
           pitch: 0,
           bearing: 0,
-          duration: reduced ? 0 : 1800,
+          duration: reduced || snap ? 0 : 1800,
           essential: true
         });
         return;
@@ -508,6 +514,16 @@ function Globe({
           return;
         }
 
+        if (snap) {
+          instance.jumpTo({
+            center: [target.lng, target.lat],
+            zoom: EASY_PLAY_ZOOM,
+            pitch: 0,
+            bearing: 0
+          });
+          return;
+        }
+
         setVeil(false);
         later(() => {
           if (cancelled || introRef.current) return;
@@ -515,12 +531,28 @@ function Globe({
             center: [target.lng, target.lat],
             zoom: EASY_PLAY_ZOOM,
             pitch: 0,
+            bearing: 0,
             duration: reduced ? 0 : PIN_FLY_MS,
             curve: 1.7,
             essential: true
           });
         }, 32);
       }
+    };
+
+    // Leaving hard/diabolical: swap the view under the veil so the old spot isn't revealed.
+    const moveAfterLocked = () => {
+      setVeil(true);
+      later(() => {
+        if (cancelled || introRef.current) return;
+        leavingLockedRef.current = false;
+        instance.stop();
+        instance.jumpTo({ center: RECAP_CENTER, zoom: RECAP_ZOOM, pitch: 0, bearing: 0 });
+        moveCamera(true);
+        later(() => {
+          if (!cancelled && !cover) setVeil(false);
+        }, 140);
+      }, 60);
     };
 
     let started = false;
@@ -531,7 +563,8 @@ function Globe({
         return;
       }
       started = true;
-      moveCamera();
+      if (leavingLockedRef.current && !hard) moveAfterLocked();
+      else moveCamera();
     };
 
     tryMove();

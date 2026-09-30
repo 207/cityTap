@@ -117,6 +117,8 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
   const interludeTimers = useRef([]);
   const peekTimer = useRef(null);
   const peekHolding = useRef(false);
+  const shellRef = useRef(null);
+  const headerRef = useRef(null);
 
   const currentRound = pinIndex(gameState, rounds.length);
   const currentCity = gameState === 'playing' ? gameCities[rounds.length] ?? null : null;
@@ -124,6 +126,17 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
   useEffect(() => {
     loadGuessableCities();
   }, []);
+
+  useEffect(() => {
+    const header = headerRef.current;
+    const shell = shellRef.current;
+    if (!header || !shell || typeof ResizeObserver === 'undefined') return undefined;
+    const sync = () => shell.style.setProperty('--header-h', `${header.offsetHeight}px`);
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, [intro]);
 
   useEffect(() => {
     const seed = normalizeSeed(splashSeed);
@@ -386,7 +399,7 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
     if (difficulty === 'hard' && !isDailyFinished(dayNumber, 'diabolical')) return 'diabolical';
     return null;
   })();
-  const scoreMax = finished ? TOTAL_ROUNDS * 100 : rounds.length * 100;
+  const scoreMax = rounds.length * 100;
   const modeLabel = [
     gameMode === 'daily' ? `#${dayNumber} · Daily` : `Random · ${gameSeed}`,
     locked ? difficultyLabel(difficulty) : null
@@ -394,6 +407,7 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
 
   return (
     <div
+      ref={shellRef}
       className={`game-shell${peekMap ? ' is-peeking' : ''}${canPeekMap ? ' can-peek' : ''}`}
       onPointerDown={handlePeekPointerDown}
       onPointerUp={handlePeekPointerEnd}
@@ -404,7 +418,7 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
       }}
     >
       {!intro && (
-        <header className="game-header">
+        <header ref={headerRef} className="game-header">
           <div className="game-header-inner">
             <div className="game-brand">
               <BrandMark size={32} />
@@ -422,15 +436,17 @@ function CityTapGame({ intro = false, initialSeed = '', splashSeed = '', difficu
               </div>
             </div>
             <div className="game-header-right">
-              <div className="game-scoreboard">
-                <div className="game-scoreboard-round">
-                  {finished ? 'Finished' : `${currentRound + 1} / ${TOTAL_ROUNDS}`}
+              {!finished && (
+                <div className="game-scoreboard">
+                  <div className="game-scoreboard-round">
+                    {`${currentRound + 1} / ${TOTAL_ROUNDS}`}
+                  </div>
+                  <div className="game-scoreboard-score">
+                    {runningScore}
+                    <span>/{scoreMax}</span>
+                  </div>
                 </div>
-                <div className="game-scoreboard-score">
-                  {runningScore}
-                  <span>/{scoreMax}</span>
-                </div>
-              </div>
+              )}
               <DifficultyToggle
                 difficulty={difficulty}
                 onChange={onDifficultyChange}

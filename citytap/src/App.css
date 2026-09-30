@@ -82,6 +82,7 @@ body {
 
 .globe-veil.is-on {
   opacity: 1;
+  transition: none;
 }
 
 .round-load {
@@ -727,7 +728,7 @@ body {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: 88px 16px 24px;
+  padding: var(--header-h, 88px) 16px 24px;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.12) 55%, transparent);
   animation: fade-in 0.35s ease;
   pointer-events: none;
@@ -735,8 +736,7 @@ body {
 
 .results-card {
   width: min(520px, 100%);
-  max-height: calc(100vh - 120px);
-  max-height: calc(100dvh - 120px);
+  max-height: 100%;
   overflow: auto;
   background: var(--reveal-surface);
   color: var(--text);

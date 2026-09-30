@@ -1,7 +1,6 @@
 function ModeToggle({ mode, onChange }) {
   return (
-    <div className="mode-toggle" role="group" aria-label="Game mode for testing">
-      <span className="mode-toggle-label">Test</span>
+    <div className="mode-toggle" role="group" aria-label="Game mode">
       <div className="mode-toggle-track">
         <button
           type="button"
